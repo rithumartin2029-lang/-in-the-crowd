@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#13203F"/>
+      <stop offset="1" stop-color="#0A1228"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5BA3FF"/>
+      <stop offset="1" stop-color="#9D8DFF"/>
+    </linearGradient>
+    <radialGradient id="stage" cx="0.5" cy="0.85" r="0.55">
+      <stop offset="0" stop-color="#5BA3FF" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#5BA3FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+
+  <!-- Stage glow -->
+  <rect width="512" height="512" rx="96" fill="url(#stage)"/>
+
+  <!-- Crowd silhouettes (row of heads at the bottom) -->
+  <g fill="#0A1228" opacity="0.85">
+    <circle cx="64"  cy="430" r="34"/>
+    <circle cx="138" cy="430" r="34"/>
+    <circle cx="212" cy="430" r="34"/>
+    <circle cx="286" cy="430" r="34"/>
+    <circle cx="360" cy="430" r="34"/>
+    <circle cx="434" cy="430" r="34"/>
+    <rect x="30"  y="430" width="452" height="82"/>
+  </g>
+
+  <!-- Raised arms (a few hands up in the crowd) -->
+  <g stroke="url(#glow)" stroke-width="6" stroke-linecap="round" opacity="0.75">
+    <line x1="64"  y1="396" x2="60"  y2="330"/>
+    <line x1="212" y1="396" x2="208" y2="318"/>
+    <line x1="360" y1="396" x2="364" y2="324"/>
+  </g>
+
+  <!-- Music note (the heart of the night) -->
+  <g fill="url(#glow)">
+    <!-- Note stem -->
+    <rect x="244" y="120" width="14" height="180" rx="6"/>
+    <!-- Note flag -->
+    <path d="M258 120 C 318 142, 318 196, 282 222 C 312 198, 296 158, 258 144 Z"/>
+    <!-- Note head -->
+    <ellipse cx="218" cy="306" rx="42" ry="32" transform="rotate(-22 218 306)"/>
+  </g>
+
+  <!-- Sparkle accents -->
+  <g fill="#5BA3FF" opacity="0.85">
+    <circle cx="120" cy="120" r="3"/>
+    <circle cx="400" cy="160" r="3"/>
+    <circle cx="380" cy="80"  r="2.5"/>
+    <circle cx="160" cy="200" r="2"/>
+  </g>
+</svg>

@@ -1,0 +1,43 @@
+{
+  "name": "In the Crowd",
+  "short_name": "In the Crowd",
+  "description": "For the ones who made it. For the ones who missed it. For the ones still dreaming. Somewhere, We're All in the Crowd.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0A1228",
+  "theme_color": "#0A1228",
+  "categories": ["music", "social", "entertainment"],
+  "lang": "en",
+  "dir": "ltr",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-256.png", "sizes": "256x256", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-384.png", "sizes": "384x384", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Explore",
+      "short_name": "Explore",
+      "description": "Browse concerts and artist communities",
+      "url": "/?view=explore"
+    },
+    {
+      "name": "Together",
+      "short_name": "Together",
+      "description": "Text-based chat rooms for each concert",
+      "url": "/?view=together"
+    },
+    {
+      "name": "My Space",
+      "short_name": "My Space",
+      "description": "Your bucket list, countdowns, and diary",
+      "url": "/?view=myspace"
+    }
+  ]
+}
