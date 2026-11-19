@@ -42,7 +42,7 @@ export function UploadDialog({
   onOpenChange: (v: boolean) => void;
   concertId?: string;
 }) {
-  const { auth, concerts, artists, addMemory } = useStore();
+  const { auth, concerts, artists, memoryFolders, addMemory } = useStore();
   const [type, setType] = React.useState<MemoryType>("photo");
   const [file, setFile] = React.useState<File | null>(null);
   const [preview, setPreview] = React.useState<string>("");
@@ -51,6 +51,8 @@ export function UploadDialog({
   const [concertName, setConcertName] = React.useState("");
   const [songName, setSongName] = React.useState("");
   const [category, setCategory] = React.useState<MemoryCategory>("photos");
+  const [folderId, setFolderId] = React.useState("unfiled");
+  const availableFolders = memoryFolders.filter((folder) => folder.concertId === (concertId ?? concerts.find((c) => `${c.artist} — ${c.tour}` === concertName)?.id) && folder.userId === auth?.id);
   const [visibility, setVisibility] = React.useState<Visibility>("public");
   const [containsSpoilers, setContainsSpoilers] = React.useState(false);
   const [agreed, setAgreed] = React.useState(false);
@@ -86,6 +88,7 @@ export function UploadDialog({
     setCaption("");
     setSongName("");
     setCategory("photos");
+    setFolderId("unfiled");
     setVisibility("public");
     setContainsSpoilers(false);
     setAgreed(false);
@@ -120,6 +123,7 @@ export function UploadDialog({
         caption: caption.trim(),
         songName: songName.trim() || undefined,
         category,
+        folderId: folderId === "unfiled" ? undefined : folderId,
         visibility,
         containsSpoilers,
         approved: visibility !== "public",
@@ -183,6 +187,18 @@ export function UploadDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Folder (optional)</Label>
+            <Select value={folderId} onValueChange={setFolderId}>
+              <SelectTrigger><SelectValue placeholder="Keep unfiled" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unfiled">No folder</SelectItem>
+                {availableFolders.map((folder) => <SelectItem key={folder.id} value={folder.id}>{folder.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-muted-foreground">You can create and manage folders from your memory library.</p>
           </div>
 
           <div className="space-y-1.5">
