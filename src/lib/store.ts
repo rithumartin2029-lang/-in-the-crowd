@@ -823,7 +823,7 @@ export const useStore = create<StoreState>()(
                 fomo: (conns ?? []).filter((c: any) => c.kind === "fomo").map((c: any) => ({
                   userId: String(c.requester_id === u.id ? c.target_id : c.requester_id),
                   status: c.status ?? "pending",
-                  direction: c.target_id === u.id ? "incoming" : "outgoing",
+                  direction: c.target_id === u.id ? "incoming" as const : "outgoing" as const,
                   label: c.label ?? "FOMO Buddy",
                 })),
                 buddies: (conns ?? []).filter((c: any) => c.kind === "buddy").map((c: any) => ({
