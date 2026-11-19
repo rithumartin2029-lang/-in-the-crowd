@@ -1,0 +1,39 @@
+name: Cloudflare migration build check
+
+on:
+  push:
+    branches:
+      - cloudflare-migration-safe-test
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "public/**"
+      - "package.json"
+      - "next.config.ts"
+      - "open-next.config.ts"
+      - "wrangler.jsonc"
+      - ".github/workflows/cloudflare-build-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out test branch
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build Cloudflare Worker (no deployment)
+        run: npm run build:worker
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: cloudflare-build-check-placeholder
