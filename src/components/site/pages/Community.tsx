@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/site/EmptyState";
 import { PledgeDialog } from "@/components/site/PledgeDialog";
 import { ConcertCard } from "@/components/site/ConcertCard";
 import { Section } from "@/components/site/Section";
-import { timeAgo, coverClass, softCount } from "@/lib/utils";
+import { timeAgo, coverClass } from "@/lib/utils";
 import { Heart, MessageCircle, Users, Music, Send, Sparkles, Frown, Calendar, Flag } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,7 +27,6 @@ export default function Community() {
     navigate,
     concerts,
     artists,
-    gentleMode,
   } = useStore();
 
   const [body, setBody] = React.useState("");
@@ -159,7 +158,7 @@ export default function Community() {
                   <CardContent className="space-y-2 p-3">
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>{a.genre}</span>
-                      <span>{softCount(a.members, gentleMode)}</span>
+                      <span>{a.members} {a.members === 1 ? "person" : "people"} in the crowd</span>
                     </div>
                     <div className="flex gap-2">
                       <Button size="sm" className="flex-1" onClick={() => { toast.success(`Joined ${a.name}`); }}>Join</Button>
