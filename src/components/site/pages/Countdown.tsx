@@ -172,7 +172,8 @@ export default function Countdown() {
               )}
               <div className="flex justify-end gap-2">
                 <Button size="sm" variant="ghost" onClick={() => setSharingId(null)}>Cancel</Button>
-                <Button size="sm" disabled={false} onClick={async () => {
+                <Button size="sm" onClick={async () => {
+                  if (!sharingId) return;
                   const ok = await shareCountdown(sharingId, shareSelection);
                   if (ok) {
                     toast.success(shareSelection.length ? "Countdown shared with selected connections" : "Countdown is private again");
