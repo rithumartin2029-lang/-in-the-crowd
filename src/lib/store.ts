@@ -279,7 +279,8 @@ interface StoreState {
   deleteConcert: (concertId: string) => void;
 
   // actions
-  signUp: (data: { username: string; email: string; password: string; avatarSeed?: number }) => Promise<{ ok: boolean; error?: string }>;
+  signUp: (data: { username: string; email: string; password: string; avatarSeed?: number }) => Promise<{ ok: boolean; error?: string; needsEmailConfirmation?: boolean }>;
+  resendSignupConfirmation: (email: string) => Promise<{ ok: boolean; error?: string }>;
   signIn: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   signInDemo: () => void;
   signInDemoAdmin: () => void;
@@ -468,10 +469,13 @@ export const useStore = create<StoreState>()(
           if (error) {
             return { ok: false, error: error.message };
           }
-          // After signup, fetch the profile (the trigger just created it).
-          // Note: if "Confirm email" is ON in Supabase, the user must click
-          // the link in their email before they can sign in. We still set
-          // a local auth object so the UI works.
+          // Do not treat an unconfirmed signup as an authenticated session.
+          // Supabase returns no session while email confirmation is pending.
+          if (!data.session) {
+            set({ auth: null });
+            return { ok: true, needsEmailConfirmation: true };
+          }
+          // A real session exists, so it is safe to load the profile and enable writes.
           const userId = data.user?.id;
           if (userId) {
             const { data: profile } = await supabase
@@ -532,6 +536,17 @@ export const useStore = create<StoreState>()(
           role: isFirst ? "admin" : "user",
         };
         set({ auth: user, registeredUsers: [...get().registeredUsers, user] });
+        return { ok: true };
+      },
+
+      resendSignupConfirmation: async (email) => {
+        if (!supabase) return { ok: false, error: "Email confirmation is unavailable in local mode." };
+        const { error } = await supabase.auth.resend({
+          type: "signup",
+          email,
+          options: { emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined },
+        });
+        if (error) return { ok: false, error: error.message };
         return { ok: true };
       },
 
@@ -625,7 +640,11 @@ export const useStore = create<StoreState>()(
         if (!supabase) return;
         const { data } = await supabase.auth.getSession();
         const session = data.session;
-        if (!session) return;
+        if (!session) {
+          // Clear stale locally-persisted auth from signups that never confirmed.
+          if (get().auth) set({ auth: null });
+          return;
+        }
         const userId = session.user.id;
         const email = session.user.email ?? "";
         const { data: profile } = await supabase

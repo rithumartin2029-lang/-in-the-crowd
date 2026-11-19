@@ -15,7 +15,7 @@ import { avatarGradient, avatarInitials } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export default function Auth({ message }: { message?: string }) {
-  const { signIn, signUp, navigate } = useStore();
+  const { signIn, signUp, resendSignupConfirmation, navigate } = useStore();
   const [mode, setMode] = React.useState<"login" | "register">("login");
   const [showPledge, setShowPledge] = React.useState(false);
 
@@ -46,8 +46,28 @@ export default function Auth({ message }: { message?: string }) {
       return;
     }
     setShowPledge(false);
+    if (res.needsEmailConfirmation) {
+      setLoginEmail(rEmail.trim());
+      setMode("login");
+      toast.success("Check your email", { description: "Confirm your address before signing in. If the link expired, use Resend confirmation email below." });
+      return;
+    }
     toast.success("Welcome to the crowd", { description: "Your account is ready." });
     navigate("home");
+  };
+
+  const handleResendConfirmation = async () => {
+    const email = loginEmail.trim();
+    if (!email) {
+      toast.error("Enter your email address first");
+      return;
+    }
+    const res = await resendSignupConfirmation(email);
+    if (!res.ok) {
+      toast.error(res.error ?? "Could not resend confirmation email");
+      return;
+    }
+    toast.success("Confirmation email sent", { description: "Open the newest email and use its latest link." });
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -105,6 +125,7 @@ export default function Auth({ message }: { message?: string }) {
                   <Input id="lp" type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} placeholder="••••••" required />
                 </div>
                 <Button type="submit" className="w-full">Sign in</Button>
+                <Button type="button" variant="link" className="w-full" onClick={handleResendConfirmation}>Resend confirmation email</Button>
               </form>
             </CardContent>
           </Card>

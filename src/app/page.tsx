@@ -71,14 +71,21 @@ export default function Page() {
   // the server and on the first client render, then swap in the real view.
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => {
-    // Manually rehydrate from localStorage now that we're on the client.
-    try {
-      useStore.persist.rehydrate();
-    } catch {}
-    setMounted(true);
-    // If Supabase is configured, also try to restore the user's session
-    // (so a refresh keeps them signed in) and load their data.
-    restoreSession().catch(() => {});
+    let cancelled = false;
+    const boot = async () => {
+      // Rehydrate first so restoreSession can clear any stale local-only login.
+      try {
+        await useStore.persist.rehydrate();
+      } catch {}
+      if (cancelled) return;
+      setMounted(true);
+      // Restore only a real Supabase session, then load cloud data.
+      restoreSession().catch(() => {});
+    };
+    void boot();
+    return () => {
+      cancelled = true;
+    };
   }, [restoreSession]);
 
   // Deep-link from PWA manifest shortcuts: /?view=explore / together / myspace
