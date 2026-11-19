@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/site/EmptyState";
 import { Section } from "@/components/site/Section";
-import { Shield, Heart, Users, Search } from "lucide-react";
+import { Shield, Users, Search } from "lucide-react";
 import { toast } from "sonner";
 
 const SAFETY = [
@@ -34,12 +34,6 @@ export default function Connections() {
     u.favArtists.some((a) => a.toLowerCase().includes(q.toLowerCase()))
   );
 
-  const fomoLabels = [
-    { label: "Same FOMO", value: "I missed Echo Valley in Lisbon" },
-    { label: "Same Dream Concert", value: "Lumina Sky — Reykjavik" },
-    { label: "Shared Artist", value: "Aurora Lane" },
-  ];
-
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-6 sm:px-6">
       <Section title="Connections" description="Find the ones who feel the same way.">
@@ -54,28 +48,6 @@ export default function Connections() {
       </Section>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {/* FOMO matches */}
-        <Card className="bg-card/60">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base"><Heart className="size-4 text-primary" /> Share Your FOMO</CardTitle>
-            <CardDescription>People who feel the same way.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {fomoLabels.map((f) => (
-              <div key={f.label} className="rounded-lg border border-border/40 p-3">
-                <Badge variant="secondary">{f.label}</Badge>
-                <p className="mt-1 text-sm">{f.value}</p>
-                <Button size="sm" variant="outline" className="mt-2 gap-1.5" onClick={() => {
-                  sendConnectionRequest(f.label);
-                  toast.success(`Looking for people matching: ${f.label}`);
-                }}>
-                  <Search className="size-4" /> Find matches
-                </Button>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
         {/* Find buddies */}
         <Card className="bg-card/60">
           <CardHeader>
