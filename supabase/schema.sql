@@ -867,3 +867,51 @@ using (bucket_id = 'memories' and exists (
 do $$ begin
   alter publication supabase_realtime add table public.direct_messages;
 exception when duplicate_object then null; end $$;
+
+
+-- ============================================================================
+-- ARTIST COMMUNITY MEMBERSHIPS
+-- ============================================================================
+-- Membership is unique per artist and user. The public artists.members field
+-- is maintained from actual membership rows rather than a placeholder count.
+create table if not exists public.artist_memberships (
+  artist_id uuid not null references public.artists(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (artist_id, user_id)
+);
+create index if not exists artist_memberships_user_idx on public.artist_memberships(user_id);
+alter table public.artist_memberships enable row level security;
+drop policy if exists "Users can see their own artist memberships" on public.artist_memberships;
+create policy "Users can see their own artist memberships"
+  on public.artist_memberships for select to authenticated
+  using ((select auth.uid()) = user_id);
+drop policy if exists "Users can join artists as themselves" on public.artist_memberships;
+create policy "Users can join artists as themselves"
+  on public.artist_memberships for insert to authenticated
+  with check ((select auth.uid()) = user_id);
+drop policy if exists "Users can leave artists they joined" on public.artist_memberships;
+create policy "Users can leave artists they joined"
+  on public.artist_memberships for delete to authenticated
+  using ((select auth.uid()) = user_id);
+grant select, insert, delete on public.artist_memberships to authenticated;
+
+create or replace function public.refresh_artist_member_count()
+returns trigger language plpgsql security definer set search_path = public
+as $$
+declare target_artist uuid;
+begin
+  target_artist := coalesce(new.artist_id, old.artist_id);
+  update public.artists
+  set members = (select count(*)::integer from public.artist_memberships where artist_id = target_artist)
+  where id = target_artist;
+  return coalesce(new, old);
+end;
+$$;
+revoke all on function public.refresh_artist_member_count() from public, anon, authenticated;
+drop trigger if exists refresh_artist_member_count_after_change on public.artist_memberships;
+create trigger refresh_artist_member_count_after_change
+after insert or delete on public.artist_memberships
+for each row execute function public.refresh_artist_member_count();
+update public.artists a
+set members = (select count(*)::integer from public.artist_memberships m where m.artist_id = a.id);
