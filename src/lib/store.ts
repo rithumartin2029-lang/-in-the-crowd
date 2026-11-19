@@ -312,9 +312,10 @@ interface StoreState {
 
   addMemory: (m: Omit<Memory, "id" | "createdAt">, file?: File) => Promise<void>;
   updateMemory: (id: string, patch: Partial<Memory>) => void;
-  deleteMemory: (id: string) => void;
+  deleteMemory: (id: string) => Promise<boolean>;
 
   addFomoPost: (p: Omit<FomoPost, "id" | "createdAt" | "reactions" | "comments">) => void;
+  deleteFomoPost: (id: string) => Promise<boolean>;
   addFomoComment: (postId: string, body: string) => void;
   reactFomo: (postId: string, kind: keyof FomoPost["reactions"]) => void;
 
@@ -329,7 +330,8 @@ interface StoreState {
 
   updateSettings: (s: Partial<Settings>) => void;
   updateProfile: (patch: Partial<User>) => void;
-  reportContent: (r: Omit<Report, "id" | "status">) => void;
+  reportContent: (r: Omit<Report, "id" | "status">) => Promise<{ ok: boolean; error?: string }>;
+  updateReportStatus: (id: string, status: Report["status"]) => Promise<boolean>;
   blockUser: (userId: string) => void;
 
   resetAll: () => void;
@@ -1275,16 +1277,23 @@ export const useStore = create<StoreState>()(
           }
         }
       },
-      deleteMemory: (id) => {
+      deleteMemory: async (id) => {
+        const u = get().auth;
         const memory = get().memories.find((m) => m.id === id);
-        set((s) => ({ memories: s.memories.filter((m) => m.id !== id) }));
+        if (!u || !memory || (memory.userId !== u.id && u.role !== "admin")) return false;
         if (supabase) {
-          (async () => {
-            const { error } = await supabase.from("memories").delete().eq("id", id);
-            if (error) { console.warn("[Supabase] deleteMemory failed:", error.message); return; }
-            if (memory?.storagePath) await supabase.storage.from("memories").remove([memory.storagePath]);
-          })();
+          const { data, error } = await supabase.from("memories").delete().eq("id", id).select("id").maybeSingle();
+          if (error || !data) {
+            console.warn("[Supabase] deleteMemory failed:", error?.message ?? "No row was deleted.");
+            return false;
+          }
+          if (memory.storagePath) {
+            const { error: storageError } = await supabase.storage.from("memories").remove([memory.storagePath]);
+            if (storageError) console.warn("[Supabase] memory file cleanup failed:", storageError.message);
+          }
         }
+        set((s) => ({ memories: s.memories.filter((m) => m.id !== id) }));
+        return true;
       },
 
       addFomoPost: (p) => {
@@ -1310,6 +1319,20 @@ export const useStore = create<StoreState>()(
             if (error) console.warn("[Supabase] addFomoPost failed:", error.message);
           })();
         }
+      },
+      deleteFomoPost: async (id) => {
+        const u = get().auth;
+        const post = get().fomoPosts.find((p) => p.id === id);
+        if (!u || !post || (post.userId !== u.id && u.role !== "admin")) return false;
+        if (supabase) {
+          const { data, error } = await supabase.from("fomo_posts").delete().eq("id", id).select("id").maybeSingle();
+          if (error || !data) {
+            console.warn("[Supabase] deleteFomoPost failed:", error?.message ?? "No row was deleted.");
+            return false;
+          }
+        }
+        set((s) => ({ fomoPosts: s.fomoPosts.filter((p) => p.id !== id) }));
+        return true;
       },
       addFomoComment: (postId, body) => {
         const u = get().auth;
@@ -1455,10 +1478,39 @@ export const useStore = create<StoreState>()(
           if (Object.keys(db).length) void supabase.from("profiles").update(db).eq("id", u.id).then(({ error }) => { if (error) console.warn("[Supabase] updateProfile failed:", error.message); });
         }
       },
-      reportContent: (r) => {
-        const u = get().auth; const row = { ...r, id: uuid(), status: "pending" as const };
+      reportContent: async (r) => {
+        const u = get().auth;
+        if (!u && r.targetType !== "takedown") return { ok: false, error: "Please sign in to report this content." };
+        const row = { ...r, reporterId: u?.id ?? "", id: uuid(), status: "pending" as const };
+        if (supabase) {
+          const { error } = await supabase.from("reports").insert({
+            id: row.id,
+            reporter_id: u?.id ?? null,
+            target_type: row.targetType,
+            target_id: row.targetId,
+            reason: row.reason,
+            status: "pending",
+          });
+          if (error) {
+            console.warn("[Supabase] reportContent failed:", error.message);
+            return { ok: false, error: error.message };
+          }
+        }
         set((s) => ({ reports: [...s.reports, row] }));
-        if (supabase && u) void supabase.from("reports").insert({ id: row.id, reporter_id: u.id, target_type: row.targetType, target_id: row.targetId, reason: row.reason, status: "pending" }).then(({ error }) => { if (error) console.warn("[Supabase] reportContent failed:", error.message); });
+        return { ok: true };
+      },
+      updateReportStatus: async (id, status) => {
+        const u = get().auth;
+        if (!u || u.role !== "admin") return false;
+        if (supabase) {
+          const { data, error } = await supabase.from("reports").update({ status }).eq("id", id).select("id").maybeSingle();
+          if (error || !data) {
+            console.warn("[Supabase] updateReportStatus failed:", error?.message ?? "No report was updated.");
+            return false;
+          }
+        }
+        set((s) => ({ reports: s.reports.map((r) => r.id === id ? { ...r, status } : r) }));
+        return true;
       },
       blockUser: (userId) => {
         const next = [...new Set([...get().settings.customMuteList, userId])];
