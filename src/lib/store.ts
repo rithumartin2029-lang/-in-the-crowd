@@ -297,7 +297,7 @@ interface StoreState {
   addBucketItem: (item: Omit<BucketItem, "id" | "attended">) => void;
   markBucketAttended: (id: string) => void;
 
-  addCountdown: (c: Omit<CountdownItem, "id">) => void;
+  addCountdown: (c: Omit<CountdownItem, "id">, file?: File) => Promise<void>;
   editCountdown: (id: string, patch: Partial<CountdownItem>) => void;
   deleteCountdown: (id: string) => void;
 
@@ -741,10 +741,17 @@ export const useStore = create<StoreState>()(
                 tour: b.tour, date: b.date, venue: b.venue, city: b.city, notes: b.notes,
                 attended: b.attended ?? false,
               })),
-              countdowns: (cd ?? []).map((c: any) => ({
-                id: String(c.id), artist: c.artist ?? "", concert: c.concert ?? "",
-                date: c.date, venue: c.venue, city: c.city, notes: c.notes,
-                imageUrl: c.image_url, variant: c.variant ?? "minimal",
+              countdowns: await Promise.all((cd ?? []).map(async (c: any) => {
+                let imageUrl = c.image_url ?? "";
+                if (imageUrl && !/^https?:\/\//i.test(imageUrl) && supabase) {
+                  const { data } = await supabase.storage.from("memories").createSignedUrl(imageUrl, 3600);
+                  imageUrl = data?.signedUrl ?? "";
+                }
+                return {
+                  id: String(c.id), artist: c.artist ?? "", concert: c.concert ?? "",
+                  date: c.date, venue: c.venue, city: c.city, notes: c.notes,
+                  imageUrl, variant: c.variant ?? "minimal",
+                };
               })),
               diary: (dy ?? []).map((d: any) => ({
                 id: String(d.id), title: d.title ?? "", body: d.body ?? "",
@@ -1154,10 +1161,31 @@ export const useStore = create<StoreState>()(
         if (supabase) void supabase.from("bucket_list").update({ attended: true }).eq("id", id).then(({ error }) => { if (error) console.warn("[Supabase] markBucketAttended failed:", error.message); });
       },
 
-      addCountdown: (c) => {
-        const u = get().auth; const row = { ...c, id: uuid() };
-        set((s) => ({ countdowns: [...s.countdowns, row] }));
-        if (supabase && u) void supabase.from("countdowns").insert({ id: row.id, user_id: u.id, artist: row.artist, concert: row.concert, date: row.date, venue: row.venue, city: row.city, notes: row.notes, image_url: row.imageUrl, variant: row.variant }).then(({ error }) => { if (error) console.warn("[Supabase] addCountdown failed:", error.message); });
+      addCountdown: async (c, file) => {
+        const u = get().auth;
+        if (!u) throw new Error("Please sign in before adding a countdown.");
+        const row = { ...c, id: uuid() };
+        let storagePath = c.imageUrl ?? "";
+        if (file) {
+          if (!supabase) throw new Error("Photo uploads need an active cloud connection.");
+          const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : (file.type.split("/")[1] || "jpg");
+          storagePath = `${u.id}/countdowns/${row.id}.${ext}`;
+          const { error: uploadError } = await supabase.storage.from("memories").upload(storagePath, file, { contentType: file.type || "image/jpeg", upsert: false });
+          if (uploadError) throw new Error(`Photo upload failed: ${uploadError.message}`);
+        }
+        if (supabase) {
+          const { error } = await supabase.from("countdowns").insert({ id: row.id, user_id: u.id, artist: row.artist, concert: row.concert, date: row.date, venue: row.venue, city: row.city, notes: row.notes, image_url: storagePath, variant: row.variant });
+          if (error) {
+            if (file && storagePath) await supabase.storage.from("memories").remove([storagePath]);
+            throw new Error(`Saving countdown failed: ${error.message}`);
+          }
+        }
+        let displayUrl = storagePath;
+        if (storagePath && supabase && !/^https?:\/\//i.test(storagePath)) {
+          const { data } = await supabase.storage.from("memories").createSignedUrl(storagePath, 3600);
+          displayUrl = data?.signedUrl ?? "";
+        }
+        set((state) => ({ countdowns: [...state.countdowns, { ...row, imageUrl: displayUrl }] }));
       },
       editCountdown: (id, patch) => {
         set((s) => ({ countdowns: s.countdowns.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));

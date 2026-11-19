@@ -19,6 +19,10 @@ import { toast } from "sonner";
 export default function Countdown() {
   const { auth, countdowns, addCountdown, deleteCountdown, navigate } = useStore();
   const [open, setOpen] = React.useState(false);
+  const [photoFile, setPhotoFile] = React.useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const userMemories = useStore((state) => state.memories.filter((memory) => memory.userId === state.auth?.id && memory.type === "photo"));
   const [form, setForm] = React.useState<Omit<CountdownItem, "id">>({
     artist: "",
     concert: "",
@@ -33,16 +37,25 @@ export default function Countdown() {
 
   if (!auth) return null;
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.artist.trim() || !form.concert.trim() || !form.date) {
       toast.error("Add artist, concert, and date");
       return;
     }
-    addCountdown(form);
-    setForm({ artist: "", concert: "", date: "", venue: "", city: "", notes: "", imageUrl: "", variant: "minimal", sharedWith: [] });
-    setOpen(false);
-    toast.success("Countdown added");
+    setSaving(true);
+    try {
+      await addCountdown(form, photoFile ?? undefined);
+      setForm({ artist: "", concert: "", date: "", venue: "", city: "", notes: "", imageUrl: "", variant: "minimal", sharedWith: [] });
+      setPhotoFile(null);
+      setPhotoPreview("");
+      setOpen(false);
+      toast.success("Countdown added");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save countdown");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -70,6 +83,38 @@ export default function Countdown() {
                   <div className="space-y-1.5"><Label>City</Label><Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></div>
                 </div>
                 <div className="space-y-1.5"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+                <div className="space-y-2">
+                  <Label>Countdown photo</Label>
+                  <Input type="file" accept="image/*" onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    setPhotoFile(file);
+                    setForm((current) => ({ ...current, imageUrl: "" }));
+                    setPhotoPreview(file ? URL.createObjectURL(file) : "");
+                  }} />
+                  {userMemories.length > 0 && (
+                    <div className="space-y-1.5">
+                      <Label>Or choose one of your existing memories</Label>
+                      <select
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        value={photoFile ? "" : form.imageUrl}
+                        onChange={(e) => {
+                          const selected = userMemories.find((memory) => memory.storagePath === e.target.value);
+                          setPhotoFile(null);
+                          setPhotoPreview(selected?.url ?? "");
+                          setForm((current) => ({ ...current, imageUrl: e.target.value }));
+                        }}
+                      >
+                        <option value="">No saved memory selected</option>
+                        {userMemories.filter((memory) => memory.storagePath).map((memory) => (
+                          <option key={memory.id} value={memory.storagePath!}>{memory.caption || "Saved photo"}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {(photoPreview || form.imageUrl) && (
+                    <img src={photoPreview || userMemories.find((memory) => memory.storagePath === form.imageUrl)?.url || ""} alt="Countdown photo preview" className="h-36 w-full rounded-lg object-cover" />
+                  )}
+                </div>
                 <div className="space-y-1.5">
                   <Label>Card variant</Label>
                   <ToggleGroup type="single" value={form.variant} onValueChange={(v) => v && setForm({ ...form, variant: v as CountdownItem["variant"] })}>
@@ -81,7 +126,7 @@ export default function Countdown() {
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-                  <Button type="submit">Add countdown</Button>
+                  <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Add countdown"}</Button>
                 </div>
               </form>
             </CardContent>
@@ -120,8 +165,9 @@ function CountdownCard({ c, onDelete, onShare, onUpload }: { c: CountdownItem; o
   return (
     <Card className={`overflow-hidden ${c.variant === "artist-photo" ? "" : ""}`}>
       {c.variant === "artist-photo" && (
-        <div className={`relative h-24 ${coverClass(1)}`}>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+        <div className={`relative h-36 ${c.imageUrl ? "" : coverClass(1)}`}>
+          {c.imageUrl && <img src={c.imageUrl} alt={`${c.artist} countdown`} className="absolute inset-0 h-full w-full object-cover" />}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
           <p className="absolute bottom-2 left-3 text-sm font-bold text-white">{c.artist}</p>
         </div>
       )}
