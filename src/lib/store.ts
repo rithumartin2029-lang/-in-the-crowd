@@ -1418,7 +1418,14 @@ export const useStore = create<StoreState>()(
           const { error } = await supabase.from("connections").insert({ requester_id: u.id, target_id: userId, kind, status: "pending" });
           if (error) { console.warn("[Supabase] sendConnectionRequest failed:", error.message); return false; }
         }
-        set((s) => ({ connections: { ...s.connections, [kind === "fomo" ? "fomo" : "buddies"]: [...(kind === "fomo" ? s.connections.fomo : s.connections.buddies).filter((x) => x.userId !== userId), { userId, status: "pending", direction: "outgoing" }] } }));
+        const key: "fomo" | "buddies" = kind === "fomo" ? "fomo" : "buddies";
+        set((s) => {
+          const links: ConnectionLink[] = [
+            ...s.connections[key].filter((link) => link.userId !== userId),
+            { userId, status: "pending", direction: "outgoing" },
+          ];
+          return { connections: { ...s.connections, [key]: links } };
+        });
         return true;
       },
       acceptConnection: async (userId, kind) => {
