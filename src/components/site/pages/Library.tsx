@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/site/EmptyState";
 import { SpoilerShield } from "@/components/site/SpoilerShield";
 import { UploadDialog } from "./UploadDialog";
 import { coverClass, timeAgo } from "@/lib/utils";
-import { Search, Star, Upload, Heart } from "lucide-react";
+import { Search, Star, Upload, Heart, Flag } from "lucide-react";
 import { toast } from "sonner";
 
 const TABS: { key: MemoryCategory; label: string }[] = [
@@ -27,7 +27,7 @@ const TABS: { key: MemoryCategory; label: string }[] = [
 const SPOILER_CATEGORIES: MemoryCategory[] = ["song-wise", "special-moments"];
 
 export function Library({ concertId }: { concertId: string }) {
-  const { memories, auth, spoilerShields, gentleMode, concerts, updateMemory } = useStore();
+  const { memories, auth, spoilerShields, gentleMode, concerts, deleteMemory, reportContent } = useStore();
   const [tab, setTab] = React.useState<MemoryCategory>("photos");
   const [q, setQ] = React.useState("");
   const [favouritesOnly, setFavouritesOnly] = React.useState(false);
@@ -90,9 +90,15 @@ export function Library({ concertId }: { concertId: string }) {
               favourite={favIds.includes(m.id)}
               onToggleFav={() => toggleFav(m.id)}
               canModerate={auth?.role === "admin"}
-              onDelete={() => {
-                updateMemory(m.id, { approved: false });
-                toast.success("Memory removed from public view");
+              canReport={!!auth && auth.id !== m.userId}
+              onReport={async (reason) => {
+                const result = await reportContent({ reporterId: auth?.id ?? "", targetType: "memory", targetId: m.id, reason });
+                result.ok ? toast.success("Memory reported for review") : toast.error(result.error ?? "Could not submit report");
+              }}
+              onDelete={async () => {
+                if (!window.confirm("Permanently remove this memory and its uploaded file?")) return;
+                const removed = await deleteMemory(m.id);
+                removed ? toast.success("Memory permanently removed") : toast.error("Could not remove this memory");
               }}
             />
           ))}
@@ -113,6 +119,8 @@ function MemoryTile({
   favourite,
   onToggleFav,
   canModerate,
+  canReport,
+  onReport,
   onDelete,
 }: {
   memory: Memory;
@@ -121,6 +129,8 @@ function MemoryTile({
   favourite: boolean;
   onToggleFav: () => void;
   canModerate?: boolean;
+  canReport?: boolean;
+  onReport?: (reason: string) => void;
   onDelete?: () => void;
 }) {
   const needsShield = shielded && (memory.containsSpoilers || SPOILER_CATEGORIES.includes(memory.category) || Boolean(memory.songName));
@@ -168,11 +178,18 @@ function MemoryTile({
           <span>by {memory.username}</span>
           <span>{timeAgo(memory.createdAt)}</span>
         </div>
-        {canModerate && onDelete && (
-          <Button size="sm" variant="ghost" className="mt-1 h-7 px-2 text-xs" onClick={onDelete}>
-            Remove (admin)
-          </Button>
-        )}
+        <div className="mt-2 flex flex-wrap gap-2">
+          {canReport && onReport && (
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { const reason = window.prompt("Why are you reporting this memory?"); if (reason?.trim()) onReport(reason.trim()); }}>
+              <Flag className="mr-1 size-3" /> Report
+            </Button>
+          )}
+          {canModerate && onDelete && (
+            <Button size="sm" variant="destructive" className="h-7 px-2 text-xs" onClick={onDelete}>
+              Remove permanently (admin)
+            </Button>
+          )}
+        </div>
       </div>
     </article>
   );
