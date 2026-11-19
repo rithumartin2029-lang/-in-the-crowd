@@ -2,16 +2,15 @@
 
 import * as React from "react";
 import { useStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ConcertCard } from "@/components/site/ConcertCard";
 import { Section } from "@/components/site/Section";
 import { EmptyState } from "@/components/site/EmptyState";
-import { coverClass, softCount, timeAgo, avatarGradient, avatarInitials } from "@/lib/utils";
+import { coverClass, timeAgo, avatarGradient, avatarInitials } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Users, Music, Send, ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -19,21 +18,43 @@ import { toast } from "sonner";
 interface Post { id: string; userId: string; username: string; body: string; createdAt: string; comments: { id: string; userId: string; username: string; body: string }[] }
 
 export default function ArtistCommunity() {
-  const { artists, selectedArtistId, concerts, navigate, gentleMode, auth } = useStore();
+  const { artists, selectedArtistId, concerts, navigate, auth } = useStore();
   const artist = artists.find((a) => a.id === selectedArtistId);
-  const [posts, setPosts] = React.useState<Post[]>([
-    {
-      id: "p1",
-      userId: "u-demo",
-      username: "soft lights",
-      body: "Anyone else counting down to Reykjavik? I keep listening to Paper Lanterns on loop.",
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-      comments: [
-        { id: "c1", userId: "u-demo2", username: "petal", body: "Same. I cannot wait." },
-      ],
-    },
-  ]);
+  const [posts, setPosts] = React.useState<Post[]>([]);
   const [body, setBody] = React.useState("");
+  const [isMember, setIsMember] = React.useState(false);
+  const [memberCount, setMemberCount] = React.useState(artist?.members ?? 0);
+  const [membershipLoading, setMembershipLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    setMemberCount(artist?.members ?? 0);
+  }, [artist?.id, artist?.members]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function loadMembership() {
+      if (!artist || !auth || !supabase) {
+        setIsMember(false);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("artist_memberships")
+        .select("artist_id")
+        .eq("artist_id", artist.id)
+        .eq("user_id", auth.id)
+        .maybeSingle();
+      if (!cancelled) {
+        if (error) {
+          toast.error("Couldn't check your membership. Please refresh.");
+          setIsMember(false);
+        } else {
+          setIsMember(!!data);
+        }
+      }
+    }
+    void loadMembership();
+    return () => { cancelled = true; };
+  }, [artist?.id, auth?.id]);
 
   if (!artist) {
     return (
@@ -44,6 +65,36 @@ export default function ArtistCommunity() {
   }
 
   const artistConcerts = concerts.filter((c) => c.artist === artist.name);
+
+  const toggleMembership = async () => {
+    if (!auth) { navigate("auth"); return; }
+    if (!supabase) {
+      toast.error("Joining artist communities requires a live connection. Please try again later.");
+      return;
+    }
+    setMembershipLoading(true);
+    const result = isMember
+      ? await supabase.from("artist_memberships").delete().eq("artist_id", artist.id).eq("user_id", auth.id)
+      : await supabase.from("artist_memberships").insert({ artist_id: artist.id, user_id: auth.id });
+    if (result.error) {
+      toast.error(isMember ? "Couldn't leave this community. Please try again." : "Couldn't join this community. Please try again.");
+      setMembershipLoading(false);
+      return;
+    }
+    const nextMemberState = !isMember;
+    setIsMember(nextMemberState);
+    const { data: updatedArtist } = await supabase.from("artists").select("members").eq("id", artist.id).single();
+    if (updatedArtist) {
+      setMemberCount(updatedArtist.members ?? 0);
+      useStore.setState((state) => ({
+        artists: state.artists.map((item) => item.id === artist.id ? { ...item, members: updatedArtist.members ?? 0 } : item),
+      }));
+    } else {
+      setMemberCount((count) => Math.max(0, count + (nextMemberState ? 1 : -1)));
+    }
+    toast.success(nextMemberState ? `You joined ${artist.name}'s community` : `You left ${artist.name}'s community`);
+    setMembershipLoading(false);
+  };
 
   const submit = () => {
     if (!auth) { navigate("auth"); return; }
@@ -61,13 +112,15 @@ export default function ArtistCommunity() {
 
       <div className={`relative overflow-hidden rounded-2xl ${coverClass(artist.coverIndex)}`}>
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
-        <div className="relative flex items-end justify-between gap-4 p-6 text-white sm:p-10">
+        <div className="relative flex flex-col items-start justify-between gap-4 p-6 text-white sm:flex-row sm:items-end sm:p-10">
           <div>
             <Badge className="mb-2 bg-black/40 text-white backdrop-blur">{artist.genre}</Badge>
             <h1 className="text-3xl font-bold sm:text-4xl">{artist.name}</h1>
-            <p className="mt-2 flex items-center gap-1.5 text-sm opacity-90"><Users className="size-4" /> {softCount(artist.members, gentleMode)}</p>
+            <p className="mt-2 flex items-center gap-1.5 text-sm opacity-90"><Users className="size-4" /> {memberCount} {memberCount === 1 ? "person" : "people"} in the crowd</p>
           </div>
-          <Button onClick={() => toast.success(`Joined ${artist.name}`)} className="gap-1.5"><Users className="size-4" /> Join</Button>
+          <Button disabled={membershipLoading} onClick={toggleMembership} variant={isMember ? "secondary" : "default"} className="gap-1.5">
+            <Users className="size-4" /> {membershipLoading ? "Please wait…" : isMember ? "Joined · Leave" : "Join"}
+          </Button>
         </div>
       </div>
 
