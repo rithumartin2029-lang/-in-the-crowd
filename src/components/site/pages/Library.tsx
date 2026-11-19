@@ -10,7 +10,8 @@ import { EmptyState } from "@/components/site/EmptyState";
 import { SpoilerShield } from "@/components/site/SpoilerShield";
 import { UploadDialog } from "./UploadDialog";
 import { coverClass, timeAgo } from "@/lib/utils";
-import { Search, Star, Upload, Heart, Flag } from "lucide-react";
+import { Search, Star, Upload, Heart, Flag, FolderPlus, Folder, Pencil, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
 const TABS: { key: MemoryCategory; label: string }[] = [
@@ -27,12 +28,14 @@ const TABS: { key: MemoryCategory; label: string }[] = [
 const SPOILER_CATEGORIES: MemoryCategory[] = ["song-wise", "special-moments"];
 
 export function Library({ concertId }: { concertId: string }) {
-  const { memories, auth, spoilerShields, gentleMode, concerts, deleteMemory, reportContent } = useStore();
+  const { memories, memoryFolders, auth, spoilerShields, gentleMode, concerts, deleteMemory, reportContent, createMemoryFolder, renameMemoryFolder, deleteMemoryFolder, updateMemory } = useStore();
   const [tab, setTab] = React.useState<MemoryCategory>("photos");
   const [q, setQ] = React.useState("");
   const [favouritesOnly, setFavouritesOnly] = React.useState(false);
   const [uploadOpen, setUploadOpen] = React.useState(false);
   const [favIds, setFavIds] = React.useState<string[]>([]);
+  const [folderFilter, setFolderFilter] = React.useState("all");
+  const myFolders = memoryFolders.filter((folder) => folder.concertId === concertId && folder.userId === auth?.id);
 
   const shielded = spoilerShields.includes(concertId);
   const concert = concerts.find((c) => c.id === concertId);
@@ -46,6 +49,7 @@ export function Library({ concertId }: { concertId: string }) {
       return false;
     })
     .filter((m) => m.category === tab)
+    .filter((m) => folderFilter === "all" || (folderFilter === "unfiled" ? !m.folderId : m.folderId === folderFilter))
     .filter((m) => (q.trim() ? `${m.caption} ${m.songName ?? ""} ${m.username}`.toLowerCase().includes(q.toLowerCase()) : true))
     .filter((m) => (favouritesOnly ? favIds.includes(m.id) : true));
 
@@ -54,6 +58,22 @@ export function Library({ concertId }: { concertId: string }) {
 
   return (
     <div className="space-y-4">
+      {auth && <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-sm font-semibold"><Folder className="size-4 text-primary" /> My folders</div>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={async () => { const name = window.prompt("Name your new folder"); if (!name?.trim()) return; const ok = await createMemoryFolder(concertId, name); ok ? toast.success("Folder created") : toast.error("Could not create folder. Try a different name."); }}><FolderPlus className="size-4" /> New folder</Button>
+        </div>
+        <Select value={folderFilter} onValueChange={setFolderFilter}>
+          <SelectTrigger><SelectValue placeholder="All my memories" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All memories</SelectItem>
+            <SelectItem value="unfiled">Unfiled memories</SelectItem>
+            {myFolders.map((folder) => <SelectItem key={folder.id} value={folder.id}>{folder.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {myFolders.length > 0 && <div className="flex flex-wrap gap-2">{myFolders.map((folder) => <div key={folder.id} className="flex items-center gap-1 rounded-full border border-border/50 px-2 py-1 text-xs"><Folder className="size-3 text-primary" />{folder.name}<button aria-label={`Rename ${folder.name}`} className="ml-1 text-muted-foreground hover:text-foreground" onClick={async () => { const name = window.prompt("Rename folder", folder.name); if (!name?.trim()) return; const ok = await renameMemoryFolder(folder.id, name); ok ? toast.success("Folder renamed") : toast.error("Could not rename folder."); }}><Pencil className="size-3" /></button><button aria-label={`Delete ${folder.name}`} className="text-muted-foreground hover:text-destructive" onClick={async () => { if (!window.confirm("Delete this folder? Your photos and videos will stay safe and become unfiled.")) return; const ok = await deleteMemoryFolder(folder.id); ok ? toast.success("Folder deleted; memories kept") : toast.error("Could not delete folder."); }}><Trash2 className="size-3" /></button></div>)}</div>}
+        <p className="text-xs text-muted-foreground">Folders organise your own uploads. Deleting a folder never deletes its photos or videos.</p>
+      </div>}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="relative max-w-xs flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -95,6 +115,9 @@ export function Library({ concertId }: { concertId: string }) {
                 const result = await reportContent({ reporterId: auth?.id ?? "", targetType: "memory", targetId: m.id, reason });
                 result.ok ? toast.success("Memory reported for review") : toast.error(result.error ?? "Could not submit report");
               }}
+              isOwner={auth?.id === m.userId}
+              folders={myFolders}
+              onMove={(folderId) => updateMemory(m.id, { folderId: folderId === "unfiled" ? undefined : folderId })}
               onDelete={async () => {
                 if (!window.confirm("Permanently remove this memory and its uploaded file?")) return;
                 const removed = await deleteMemory(m.id);
@@ -114,6 +137,9 @@ export function Library({ concertId }: { concertId: string }) {
 
 function MemoryTile({
   memory,
+  folders,
+  isOwner,
+  onMove,
   shielded,
   coverIndex,
   favourite,
@@ -124,6 +150,9 @@ function MemoryTile({
   onDelete,
 }: {
   memory: Memory;
+  folders: { id: string; name: string }[];
+  isOwner: boolean;
+  onMove: (folderId: string) => void;
   shielded: boolean;
   coverIndex: number;
   favourite: boolean;
@@ -171,6 +200,13 @@ function MemoryTile({
       </div>
       <div className="p-3">
         <p className="text-sm line-clamp-3">{memory.caption}</p>
+        {isOwner && <div className="mt-2">
+          <Select value={memory.folderId ?? "unfiled"} onValueChange={onMove}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Organise in folder" /></SelectTrigger>
+            <SelectContent><SelectItem value="unfiled">No folder</SelectItem>{folders.map((folder) => <SelectItem key={folder.id} value={folder.id}>{folder.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>}
+        {memory.folderId && folders.find((folder) => folder.id === memory.folderId) && <p className="mt-1 flex items-center gap-1 text-xs text-primary"><Folder className="size-3" />{folders.find((folder) => folder.id === memory.folderId)?.name}</p>}
         {memory.songName && (
           <p className="mt-1 text-xs text-primary">♪ {memory.songName}</p>
         )}
