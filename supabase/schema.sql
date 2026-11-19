@@ -265,6 +265,18 @@ create table if not exists public.connections (
 );
 
 -- ----------------------------------------------------------------------------
+-- FOLLOWS (one-way profile follows, separate from buddy connections)
+-- ----------------------------------------------------------------------------
+create table if not exists public.follows (
+  follower_id uuid not null references public.profiles(id) on delete cascade,
+  followed_id uuid not null references public.profiles(id) on delete cascade,
+  created_at  timestamptz not null default now(),
+  primary key (follower_id, followed_id),
+  constraint follows_not_self check (follower_id <> followed_id)
+);
+create index if not exists follows_followed_id_idx on public.follows(followed_id);
+
+-- ----------------------------------------------------------------------------
 -- REPORTS
 -- ----------------------------------------------------------------------------
 create table if not exists public.reports (
@@ -348,6 +360,7 @@ alter table public.someday_concerts      enable row level security;
 alter table public.song_made_night       enable row level security;
 alter table public.fund_contributions    enable row level security;
 alter table public.connections           enable row level security;
+alter table public.follows               enable row level security;
 alter table public.reports               enable row level security;
 alter table public.user_settings         enable row level security;
 
@@ -612,6 +625,20 @@ create policy "Addressees can accept or decline pending connections"
 create policy "Users can delete connections they're part of"
   on public.connections for delete
   using (requester_id = auth.uid() or target_id = auth.uid());
+
+-- One-way follows: users can see their own followers/following, follow others,
+-- and remove only follows they initiated.
+create policy "Users can see follows involving them"
+  on public.follows for select to authenticated
+  using ((select auth.uid()) = follower_id or (select auth.uid()) = followed_id);
+
+create policy "Users can follow others"
+  on public.follows for insert to authenticated
+  with check ((select auth.uid()) = follower_id and follower_id <> followed_id);
+
+create policy "Users can unfollow people they follow"
+  on public.follows for delete to authenticated
+  using ((select auth.uid()) = follower_id);
 
 -- Keep connection endpoints immutable after a request is created.
 create or replace function public.guard_connection_identity()
