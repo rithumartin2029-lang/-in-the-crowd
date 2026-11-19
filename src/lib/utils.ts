@@ -76,11 +76,8 @@ export function coverClass(index: number): string {
   return `cover-${((index - 1) % 8) + 1}`;
 }
 
-// "Many in the crowd" soft count
-export function softCount(n: number, gentle: boolean): string {
-  if (gentle) return "Many in the crowd";
+// Always show the exact member count, regardless of Gentle Mode.
+export function softCount(n: number, _gentle: boolean): string {
   if (n === 0) return "Be the first";
-  if (n < 10) return `${n} in the crowd`;
-  if (n < 100) return `${n} in the crowd`;
-  return `${Math.round(n / 10) * 10}+ in the crowd`;
+  return `${n} in the crowd`;
 }
