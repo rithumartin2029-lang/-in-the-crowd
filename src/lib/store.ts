@@ -123,7 +123,7 @@ export interface Memory {
   containsSpoilers: boolean;
   approved: boolean;
   createdAt: string;
-  folderId?: string;
+  folderId?: string | null;
 }
 
 export interface MemoryFolder {
@@ -1363,7 +1363,7 @@ export const useStore = create<StoreState>()(
           if (patch.approved !== undefined) dbPatch.approved = patch.approved;
           if (patch.visibility !== undefined) dbPatch.visibility = patch.visibility;
           if (patch.caption !== undefined) dbPatch.caption = patch.caption;
-          if (patch.folderId !== undefined) dbPatch.folder_id = patch.folderId || null;
+          if (Object.prototype.hasOwnProperty.call(patch, "folderId")) dbPatch.folder_id = patch.folderId || null;
           if (Object.keys(dbPatch).length > 0) {
             supabase.from("memories").update(dbPatch).eq("id", id)
               .then(({ error }) => { if (error) console.warn("[Supabase] updateMemory failed:", error.message); });
