@@ -123,6 +123,15 @@ export interface Memory {
   containsSpoilers: boolean;
   approved: boolean;
   createdAt: string;
+  folderId?: string;
+}
+
+export interface MemoryFolder {
+  id: string;
+  userId: string;
+  concertId: string;
+  name: string;
+  createdAt: string;
 }
 
 export interface FomoComment {
@@ -258,6 +267,7 @@ interface StoreState {
   songThatMadeMyNight: SongMadeNight[];
 
   memories: Memory[];
+  memoryFolders: MemoryFolder[];
   fomoPosts: FomoPost[];
   togetherMessages: TogetherMessage[];
   notifications: AppNotification[];
@@ -326,6 +336,9 @@ interface StoreState {
   addSongMadeNight: (s: Omit<SongMadeNight, "id">) => void;
 
   addMemory: (m: Omit<Memory, "id" | "createdAt">, file?: File) => Promise<void>;
+  createMemoryFolder: (concertId: string, name: string) => Promise<boolean>;
+  renameMemoryFolder: (folderId: string, name: string) => Promise<boolean>;
+  deleteMemoryFolder: (folderId: string) => Promise<boolean>;
   updateMemory: (id: string, patch: Partial<Memory>) => void;
   deleteMemory: (id: string) => Promise<boolean>;
 
@@ -429,6 +442,7 @@ function dbMemoryToMemory(m: any): Memory {
     containsSpoilers: m.contains_spoilers ?? false,
     approved: m.approved ?? false,
     createdAt: m.created_at ?? new Date().toISOString(),
+    folderId: m.folder_id ? String(m.folder_id) : undefined,
   };
 }
 
@@ -470,6 +484,7 @@ export const useStore = create<StoreState>()(
       somedayConcerts: [],
       songThatMadeMyNight: [],
       memories: seedMemories,
+      memoryFolders: [],
       fomoPosts: seedFomoPosts,
       togetherMessages: seedTogetherMessages,
       notifications: seedNotifications,
@@ -743,7 +758,7 @@ export const useStore = create<StoreState>()(
             const [
               { data: bl }, { data: cd }, { data: sharedCd }, { data: dy }, { data: ds },
               { data: sd }, { data: sn }, { data: fc }, { data: notifs },
-              { data: settings }, { data: conns }, { data: follows }, { data: reports }
+              { data: settings }, { data: conns }, { data: follows }, { data: reports }, { data: memoryFolders }
             ] = await Promise.all([
               supabase.from("bucket_list").select("*").eq("user_id", u.id),
               supabase.from("countdowns").select("*").eq("user_id", u.id),
@@ -758,9 +773,11 @@ export const useStore = create<StoreState>()(
               supabase.from("connections").select("*").or(`requester_id.eq.${u.id},target_id.eq.${u.id}`),
               supabase.from("follows").select("follower_id,followed_id").or(`follower_id.eq.${u.id},followed_id.eq.${u.id}`),
               supabase.from("reports").select("*"),
+              supabase.from("memory_folders").select("*").eq("user_id", u.id).order("created_at", { ascending: true }),
             ]);
 
             set({
+              memoryFolders: (memoryFolders ?? []).map((folder: any) => ({ id: String(folder.id), userId: String(folder.user_id), concertId: String(folder.concert_id), name: folder.name, createdAt: folder.created_at })),
               bucketList: (bl ?? []).map((b: any) => ({
                 id: String(b.id), artist: b.artist ?? "", concert: b.concert ?? "",
                 tour: b.tour, date: b.date, venue: b.venue, city: b.city, notes: b.notes,
@@ -1282,7 +1299,7 @@ export const useStore = create<StoreState>()(
           const { error } = await supabase.from("memories").insert({
             id: memory.id, concert_id: memory.concertId || null, user_id: memory.userId,
             username: memory.username, type: memory.type, url: "", storage_path: storagePath,
-            caption: memory.caption, song_name: memory.songName ?? null, category: memory.category,
+            caption: memory.caption, song_name: memory.songName ?? null, category: memory.category, folder_id: memory.folderId ?? null,
             visibility: memory.visibility, contains_spoilers: memory.containsSpoilers, approved: memory.approved,
           });
           if (error) {
@@ -1297,6 +1314,48 @@ export const useStore = create<StoreState>()(
           get().addNotification({ type: "memory", title: "Memory sent for review", body: `"${memory.caption}" is awaiting moderation.`, spoilerSafe: true });
         }
       },
+      createMemoryFolder: async (concertId, name) => {
+        const u = get().auth;
+        const cleanName = name.trim();
+        if (!u || !cleanName || cleanName.length > 60) return false;
+        if (supabase) {
+          const { data, error } = await supabase.from("memory_folders")
+            .insert({ user_id: u.id, concert_id: concertId, name: cleanName })
+            .select("*").single();
+          if (error || !data) return false;
+          set((s) => ({ memoryFolders: [...s.memoryFolders, { id: String(data.id), userId: u.id, concertId, name: data.name, createdAt: data.created_at }] }));
+          return true;
+        }
+        const folder = { id: uuid(), userId: u.id, concertId, name: cleanName, createdAt: new Date().toISOString() };
+        set((s) => ({ memoryFolders: [...s.memoryFolders, folder] }));
+        return true;
+      },
+      renameMemoryFolder: async (folderId, name) => {
+        const u = get().auth;
+        const cleanName = name.trim();
+        const folder = get().memoryFolders.find((f) => f.id === folderId && f.userId === u?.id);
+        if (!u || !folder || !cleanName || cleanName.length > 60) return false;
+        if (supabase) {
+          const { error } = await supabase.from("memory_folders").update({ name: cleanName }).eq("id", folderId).eq("user_id", u.id);
+          if (error) return false;
+        }
+        set((s) => ({ memoryFolders: s.memoryFolders.map((f) => f.id === folderId ? { ...f, name: cleanName } : f) }));
+        return true;
+      },
+      deleteMemoryFolder: async (folderId) => {
+        const u = get().auth;
+        const folder = get().memoryFolders.find((f) => f.id === folderId && f.userId === u?.id);
+        if (!u || !folder) return false;
+        if (supabase) {
+          const { error } = await supabase.from("memory_folders").delete().eq("id", folderId).eq("user_id", u.id);
+          if (error) return false;
+        }
+        set((s) => ({
+          memoryFolders: s.memoryFolders.filter((f) => f.id !== folderId),
+          memories: s.memories.map((m) => m.folderId === folderId ? { ...m, folderId: undefined } : m),
+        }));
+        return true;
+      },
       updateMemory: (id, patch) => {
         set((s) => ({ memories: s.memories.map((m) => (m.id === id ? { ...m, ...patch } : m)) }));
         if (supabase) {
@@ -1304,6 +1363,7 @@ export const useStore = create<StoreState>()(
           if (patch.approved !== undefined) dbPatch.approved = patch.approved;
           if (patch.visibility !== undefined) dbPatch.visibility = patch.visibility;
           if (patch.caption !== undefined) dbPatch.caption = patch.caption;
+          if (patch.folderId !== undefined) dbPatch.folder_id = patch.folderId || null;
           if (Object.keys(dbPatch).length > 0) {
             supabase.from("memories").update(dbPatch).eq("id", id)
               .then(({ error }) => { if (error) console.warn("[Supabase] updateMemory failed:", error.message); });
