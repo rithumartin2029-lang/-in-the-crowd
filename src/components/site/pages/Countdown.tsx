@@ -168,7 +168,7 @@ function CountdownCard({ c, onDelete, onShare, onUpload }: { c: CountdownItem; o
 
   return (
     <Card className={`overflow-hidden ${c.variant === "artist-photo" ? "" : ""}`}>
-      {c.variant === "artist-photo" && (
+      {(c.imageUrl || c.variant === "artist-photo") && (
         <div className={`relative h-36 ${c.imageUrl ? "" : coverClass(1)}`}>
           {c.imageUrl && <img src={c.imageUrl} alt={`${c.artist} countdown`} className="absolute inset-0 h-full w-full object-cover" />}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
