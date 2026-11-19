@@ -39,7 +39,6 @@ export default function ConcertDetail() {
     addBucketItem,
     memories,
     gentleMode,
-    sendConnectionRequest,
     joinConcert,
     leaveConcert,
     deleteConcert,
@@ -290,8 +289,8 @@ export default function ConcertDetail() {
                 className="w-full gap-1.5"
                 onClick={() => {
                   if (!auth) { navigate("auth"); return; }
-                  sendConnectionRequest("concert-" + concert.id);
-                  toast.success("Looking for buddies", { description: "We'll let you know when someone matches." });
+                  navigate("connections", { concertId: concert.id });
+                  toast.success("Find your Concert Buddy", { description: "Turn on Concert Buddy Mode and send a request to a fan." });
                 }}
               >
                 <Users className="size-4" /> Find buddies for this concert
