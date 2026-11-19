@@ -117,7 +117,7 @@ export function Library({ concertId }: { concertId: string }) {
               }}
               isOwner={auth?.id === m.userId}
               folders={myFolders}
-              onMove={(folderId) => updateMemory(m.id, { folderId: folderId === "unfiled" ? undefined : folderId })}
+              onMove={(folderId) => updateMemory(m.id, { folderId: folderId === "unfiled" ? null : folderId })}
               onDelete={async () => {
                 if (!window.confirm("Permanently remove this memory and its uploaded file?")) return;
                 const removed = await deleteMemory(m.id);
