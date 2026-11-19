@@ -13,7 +13,7 @@ import { PledgeDialog } from "@/components/site/PledgeDialog";
 import { ConcertCard } from "@/components/site/ConcertCard";
 import { Section } from "@/components/site/Section";
 import { timeAgo, coverClass, softCount } from "@/lib/utils";
-import { Heart, MessageCircle, Users, Music, Send, Sparkles, Frown, Calendar } from "lucide-react";
+import { Heart, MessageCircle, Users, Music, Send, Sparkles, Frown, Calendar, Flag } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Community() {
@@ -23,6 +23,7 @@ export default function Community() {
     addFomoPost,
     addFomoComment,
     reactFomo,
+    reportContent,
     navigate,
     concerts,
     artists,
@@ -98,6 +99,11 @@ export default function Community() {
                           toast.success("Comment added");
                         }}
                         canComment={!!auth}
+                        canReport={!!auth && auth.id !== p.userId}
+                        onReport={async (reason) => {
+                          const result = await reportContent({ reporterId: auth?.id ?? "", targetType: "fomo_post", targetId: p.id, reason });
+                          result.ok ? toast.success("Post reported for review") : toast.error(result.error ?? "Could not submit report");
+                        }}
                       />
                     ))
                   )}
@@ -187,11 +193,15 @@ function FomoCard({
   onReact,
   onComment,
   canComment,
+  canReport,
+  onReport,
 }: {
   post: FomoPost;
   onReact: (k: "heart" | "relatable" | "cry") => void;
   onComment: (b: string) => void;
   canComment: boolean;
+  canReport: boolean;
+  onReport: (reason: string) => void;
 }) {
   const [comment, setComment] = React.useState("");
   const [showComments, setShowComments] = React.useState(false);
@@ -212,6 +222,9 @@ function FomoCard({
           <ReactionBtn icon={<Heart className="size-3.5" />} count={post.reactions.heart} onClick={() => onReact("heart")} label="heart" />
           <ReactionBtn icon={<Sparkles className="size-3.5" />} count={post.reactions.relatable} onClick={() => onReact("relatable")} label="relatable" />
           <ReactionBtn icon={<Frown className="size-3.5" />} count={post.reactions.cry} onClick={() => onReact("cry")} label="cry" />
+          {canReport && <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => { const reason = window.prompt("Why are you reporting this post?"); if (reason?.trim()) onReport(reason.trim()); }}>
+            <Flag className="size-3.5" /> Report
+          </Button>}
           <Button size="sm" variant="ghost" className="ml-auto gap-1.5" onClick={() => setShowComments((v) => !v)}>
             <MessageCircle className="size-3.5" /> {post.comments.length}
           </Button>
