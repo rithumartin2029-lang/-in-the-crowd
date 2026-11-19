@@ -59,7 +59,7 @@ export default function DigitalTickets() {
       <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-card to-accent/10">
         <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Sparkles className="size-4 text-primary" /> Create a Crowd Pass</CardTitle><CardDescription>Choose one of your concert spaces and add a seat or personal note.</CardDescription></CardHeader>
         <CardContent className="space-y-3">
-          {concerts.length === 0 ? <EmptyState title="No concert spaces yet" message="Explore or start a concert space before making a keepsake ticket." action={<Button onClick={() => navigate("explore")}>Explore concerts</Button>} /> : <>
+          {concerts.length === 0 ? <><EmptyState title="No concert spaces yet" message="Explore or start a concert space before making a keepsake ticket." /><div className="flex justify-center"><Button onClick={() => navigate("explore")}>Explore concerts</Button></div></> : <>
             <select value={concertId} onChange={(e)=>setConcertId(e.target.value)} className="min-h-10 w-full rounded-lg border border-input bg-background px-3 text-sm">
               <option value="">Choose a concert…</option>{concerts.map((c)=><option key={c.id} value={c.id}>{c.artist} · {c.tour}</option>)}
             </select>
