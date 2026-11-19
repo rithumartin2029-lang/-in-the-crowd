@@ -17,20 +17,27 @@ export default function TakedownRequest() {
   const [role, setRole] = React.useState("artist");
   const [target, setTarget] = React.useState("");
   const [reason, setReason] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !target.trim() || !reason.trim()) {
       toast.error("Please complete the form");
       return;
     }
-    reportContent({
-      reporterId: auth?.id ?? "anonymous",
+    setSubmitting(true);
+    const result = await reportContent({
+      reporterId: auth?.id ?? "",
       targetType: "takedown",
       targetId: target.trim(),
-      reason: `${role}: ${reason.trim()}`,
+      reason: `${role} — ${name.trim()}: ${reason.trim()}`,
     });
-    toast.success("Request received", { description: "Our team will review." });
+    setSubmitting(false);
+    if (!result.ok) {
+      toast.error("Request could not be submitted", { description: result.error ?? "Please try again." });
+      return;
+    }
+    toast.success("Request received", { description: "Your request has been sent to the moderation team." });
     setTarget("");
     setReason("");
   };
@@ -79,9 +86,9 @@ export default function TakedownRequest() {
               <Label htmlFor="reason">Reason</Label>
               <Textarea id="reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Tell us what's wrong. We'll take it seriously." rows={4} required />
             </div>
-            <Button type="submit" className="w-full">Submit request</Button>
+            <Button type="submit" className="w-full" disabled={submitting}>{submitting ? "Submitting…" : "Submit request"}</Button>
             <p className="text-center text-xs text-muted-foreground">
-              We aim to acknowledge every request. Demo submissions are stored locally only.
+              You do not need an account. Requests are securely sent to the administrator for review.
             </p>
           </form>
         </CardContent>
