@@ -17,12 +17,16 @@ import { toast } from "sonner";
 
 // Structure ready for Android/iOS home-screen widget integration later.
 export default function Countdown() {
-  const { auth, countdowns, addCountdown, deleteCountdown, navigate } = useStore();
+  const { auth, countdowns, addCountdown, deleteCountdown, navigate, memories } = useStore();
   const [open, setOpen] = React.useState(false);
   const [photoFile, setPhotoFile] = React.useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = React.useState("");
   const [saving, setSaving] = React.useState(false);
-  const userMemories = useStore((state) => state.memories.filter((memory) => memory.userId === state.auth?.id && memory.type === "photo"));
+  // Keep the selector result stable: Zustand subscriptions must not return a new array on every snapshot.
+  const userMemories = React.useMemo(
+    () => memories.filter((memory) => memory.userId === auth?.id && memory.type === "photo"),
+    [memories, auth?.id]
+  );
   const [form, setForm] = React.useState<Omit<CountdownItem, "id">>({
     artist: "",
     concert: "",
