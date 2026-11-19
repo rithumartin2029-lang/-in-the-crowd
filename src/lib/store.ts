@@ -198,6 +198,10 @@ export interface Connections {
   fomo: ConnectionLink[];
   buddies: ConnectionLink[];
 }
+export interface FollowLink {
+  userId: string;
+  direction: "follower" | "following";
+}
 
 export interface ConcertSeed {
   id: string;
@@ -259,6 +263,7 @@ interface StoreState {
   notifications: AppNotification[];
 
   connections: Connections;
+  follows: FollowLink[];
   settings: Settings;
   reports: Report[];
 
@@ -332,6 +337,8 @@ interface StoreState {
   sendConnectionRequest: (userId: string, kind: ConnectionKind) => Promise<boolean>;
   acceptConnection: (userId: string, kind: ConnectionKind) => Promise<boolean>;
   declineConnection: (userId: string, kind: ConnectionKind) => Promise<boolean>;
+  followUser: (userId: string) => Promise<boolean>;
+  unfollowUser: (userId: string) => Promise<boolean>;
   shareCountdown: (id: string, userIds: string[]) => Promise<boolean>;
 
   sendTogetherMessage: (m: Omit<TogetherMessage, "id" | "createdAt">) => void;
@@ -467,6 +474,7 @@ export const useStore = create<StoreState>()(
       togetherMessages: seedTogetherMessages,
       notifications: seedNotifications,
       connections: { fomo: [], buddies: [] },
+      follows: [],
       settings: defaultSettings,
       reports: [],
 
@@ -735,7 +743,7 @@ export const useStore = create<StoreState>()(
             const [
               { data: bl }, { data: cd }, { data: sharedCd }, { data: dy }, { data: ds },
               { data: sd }, { data: sn }, { data: fc }, { data: notifs },
-              { data: settings }, { data: conns }, { data: reports }
+              { data: settings }, { data: conns }, { data: follows }, { data: reports }
             ] = await Promise.all([
               supabase.from("bucket_list").select("*").eq("user_id", u.id),
               supabase.from("countdowns").select("*").eq("user_id", u.id),
@@ -748,6 +756,7 @@ export const useStore = create<StoreState>()(
               supabase.from("notifications").select("*").eq("user_id", u.id),
               supabase.from("user_settings").select("*").eq("user_id", u.id).maybeSingle(),
               supabase.from("connections").select("*").or(`requester_id.eq.${u.id},target_id.eq.${u.id}`),
+              supabase.from("follows").select("follower_id,followed_id").or(`follower_id.eq.${u.id},followed_id.eq.${u.id}`),
               supabase.from("reports").select("*"),
             ]);
 
@@ -819,6 +828,10 @@ export const useStore = create<StoreState>()(
               spoilerShields: (settings?.spoiler_shields ?? []).map(String),
               gentleMutedArtists: settings?.gentle_muted_artists ?? [],
               gentleMode: settings?.gentle_mode ?? false,
+              follows: (follows ?? []).map((f: any) => ({
+                userId: String(f.follower_id === u.id ? f.followed_id : f.follower_id),
+                direction: f.follower_id === u.id ? "following" as const : "follower" as const,
+              })),
               connections: {
                 fomo: (conns ?? []).filter((c: any) => c.kind === "fomo").map((c: any) => ({
                   userId: String(c.requester_id === u.id ? c.target_id : c.requester_id),
@@ -1450,6 +1463,26 @@ export const useStore = create<StoreState>()(
         }
         const key = kind === "fomo" ? "fomo" : "buddies";
         set((s) => ({ connections: { ...s.connections, [key]: s.connections[key].map((b) => (b.userId === userId ? { ...b, status: "declined" } : b)) } }));
+        return true;
+      },
+      followUser: async (userId) => {
+        const u = get().auth;
+        if (!u || userId === u.id || get().follows.some((f) => f.userId === userId && f.direction === "following")) return false;
+        if (supabase) {
+          const { error } = await supabase.from("follows").insert({ follower_id: u.id, followed_id: userId });
+          if (error) { console.warn("[Supabase] followUser failed:", error.message); return false; }
+        }
+        set((s) => ({ follows: [...s.follows.filter((f) => !(f.userId === userId && f.direction === "following")), { userId, direction: "following" }] }));
+        return true;
+      },
+      unfollowUser: async (userId) => {
+        const u = get().auth;
+        if (!u) return false;
+        if (supabase) {
+          const { error } = await supabase.from("follows").delete().eq("follower_id", u.id).eq("followed_id", userId);
+          if (error) { console.warn("[Supabase] unfollowUser failed:", error.message); return false; }
+        }
+        set((s) => ({ follows: s.follows.filter((f) => !(f.userId === userId && f.direction === "following")) }));
         return true;
       },
       shareCountdown: async (id, userIds) => {
