@@ -915,3 +915,29 @@ after insert or delete on public.artist_memberships
 for each row execute function public.refresh_artist_member_count();
 update public.artists a
 set members = (select count(*)::integer from public.artist_memberships m where m.artist_id = a.id);
+
+
+-- ============================================================================
+-- USER-ORGANISED CROWD MEMORY FOLDERS
+-- ============================================================================
+create table if not exists public.memory_folders (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  concert_id uuid not null references public.concerts(id) on delete cascade,
+  name text not null check (char_length(trim(name)) between 1 and 60),
+  created_at timestamptz not null default now(),
+  unique (user_id, concert_id, name)
+);
+create index if not exists memory_folders_owner_concert_idx
+  on public.memory_folders(user_id, concert_id);
+alter table public.memory_folders enable row level security;
+drop policy if exists "Owners manage their memory folders" on public.memory_folders;
+create policy "Owners manage their memory folders"
+  on public.memory_folders for all to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+grant select, insert, update, delete on public.memory_folders to authenticated;
+
+alter table public.memories
+  add column if not exists folder_id uuid references public.memory_folders(id) on delete set null;
+create index if not exists memories_folder_id_idx on public.memories(folder_id);
