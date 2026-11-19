@@ -49,6 +49,8 @@ export interface CountdownItem {
   imageUrl?: string;
   variant?: "minimal" | "artist-photo" | "concert-info" | "personal-card";
   sharedWith?: string[];
+  ownerId?: string;
+  ownerUsername?: string;
 }
 
 export interface DiaryEntry {
@@ -184,9 +186,17 @@ export interface Report {
   status: "pending" | "reviewing" | "resolved";
 }
 
+export type ConnectionStatus = "pending" | "accepted" | "declined";
+export type ConnectionKind = "fomo" | "buddy";
+export interface ConnectionLink {
+  userId: string;
+  status: ConnectionStatus;
+  direction: "incoming" | "outgoing";
+  label?: string;
+}
 export interface Connections {
-  fomo: { userId: string; label: string }[];
-  buddies: { userId: string; status: "pending" | "accepted" | "declined" }[];
+  fomo: ConnectionLink[];
+  buddies: ConnectionLink[];
 }
 
 export interface ConcertSeed {
@@ -319,9 +329,10 @@ interface StoreState {
   addFomoComment: (postId: string, body: string) => void;
   reactFomo: (postId: string, kind: keyof FomoPost["reactions"]) => void;
 
-  sendConnectionRequest: (userId: string) => void;
-  acceptConnection: (userId: string) => void;
-  declineConnection: (userId: string) => void;
+  sendConnectionRequest: (userId: string, kind: ConnectionKind) => Promise<boolean>;
+  acceptConnection: (userId: string, kind: ConnectionKind) => Promise<boolean>;
+  declineConnection: (userId: string, kind: ConnectionKind) => Promise<boolean>;
+  shareCountdown: (id: string, userIds: string[]) => Promise<boolean>;
 
   sendTogetherMessage: (m: Omit<TogetherMessage, "id" | "createdAt">) => void;
   addNotification: (n: Omit<AppNotification, "id" | "createdAt" | "read">) => void;
@@ -667,12 +678,13 @@ export const useStore = create<StoreState>()(
         set({ loading: true });
         try {
           // Public data (visible to everyone, signed-in or not)
-          const [{ data: concerts }, { data: artists }, { data: memories }, { data: fomoPosts }, { data: fomoComments }] = await Promise.all([
+          const [{ data: concerts }, { data: artists }, { data: memories }, { data: fomoPosts }, { data: fomoComments }, { data: profiles }] = await Promise.all([
             supabase.from("concerts").select("*").order("created_at", { ascending: false }),
             supabase.from("artists").select("*").order("created_at", { ascending: false }),
             supabase.from("memories").select("*").order("created_at", { ascending: false }),
             supabase.from("fomo_posts").select("*").order("created_at", { ascending: false }),
             supabase.from("fomo_comments").select("*").order("created_at", { ascending: true }),
+            supabase.from("profiles").select("*").order("created_at", { ascending: false }),
           ]);
 
           const hydratedMemories = await Promise.all((memories ?? []).map(async (m: any) => {
@@ -685,6 +697,7 @@ export const useStore = create<StoreState>()(
           }));
 
           set({
+            registeredUsers: (profiles ?? []).map((p: any) => profileToUser(p, "")),
             concerts: (concerts ?? []).map(dbConcertToSeed),
             artists: (artists ?? []).map((a: any) => ({
               id: String(a.id),
@@ -720,12 +733,13 @@ export const useStore = create<StoreState>()(
           const u = get().auth;
           if (u) {
             const [
-              { data: bl }, { data: cd }, { data: dy }, { data: ds },
+              { data: bl }, { data: cd }, { data: sharedCd }, { data: dy }, { data: ds },
               { data: sd }, { data: sn }, { data: fc }, { data: notifs },
               { data: settings }, { data: conns }, { data: reports }
             ] = await Promise.all([
               supabase.from("bucket_list").select("*").eq("user_id", u.id),
               supabase.from("countdowns").select("*").eq("user_id", u.id),
+              supabase.from("countdowns").select("*").contains("shared_with", [u.id]),
               supabase.from("diary").select("*").eq("user_id", u.id),
               supabase.from("dream_setlists").select("*").eq("user_id", u.id),
               supabase.from("someday_concerts").select("*").eq("user_id", u.id),
@@ -743,7 +757,7 @@ export const useStore = create<StoreState>()(
                 tour: b.tour, date: b.date, venue: b.venue, city: b.city, notes: b.notes,
                 attended: b.attended ?? false,
               })),
-              countdowns: await Promise.all((cd ?? []).map(async (c: any) => {
+              countdowns: await Promise.all([...new Map([...(cd ?? []), ...(sharedCd ?? [])].map((c: any) => [String(c.id), c])).values()].map(async (c: any) => {
                 let imageUrl = c.image_url ?? "";
                 if (imageUrl && !/^https?:\/\//i.test(imageUrl) && supabase) {
                   const { data } = await supabase.storage.from("memories").createSignedUrl(imageUrl, 3600);
@@ -753,6 +767,9 @@ export const useStore = create<StoreState>()(
                   id: String(c.id), artist: c.artist ?? "", concert: c.concert ?? "",
                   date: c.date, venue: c.venue, city: c.city, notes: c.notes,
                   imageUrl, variant: c.variant ?? "minimal",
+                  sharedWith: (c.shared_with ?? []).map(String),
+                  ownerId: String(c.user_id ?? ""),
+                  ownerUsername: (profiles ?? []).find((p: any) => String(p.id) === String(c.user_id))?.username ?? "A crowd member",
                 };
               })),
               diary: (dy ?? []).map((d: any) => ({
@@ -805,11 +822,14 @@ export const useStore = create<StoreState>()(
               connections: {
                 fomo: (conns ?? []).filter((c: any) => c.kind === "fomo").map((c: any) => ({
                   userId: String(c.requester_id === u.id ? c.target_id : c.requester_id),
-                  label: c.label ?? "Same FOMO",
+                  status: c.status ?? "pending",
+                  direction: c.target_id === u.id ? "incoming" : "outgoing",
+                  label: c.label ?? "FOMO Buddy",
                 })),
                 buddies: (conns ?? []).filter((c: any) => c.kind === "buddy").map((c: any) => ({
                   userId: String(c.requester_id === u.id ? c.target_id : c.requester_id),
                   status: c.status ?? "pending",
+                  direction: c.target_id === u.id ? "incoming" : "outgoing",
                 })),
               },
             });
@@ -1176,7 +1196,7 @@ export const useStore = create<StoreState>()(
           if (uploadError) throw new Error(`Photo upload failed: ${uploadError.message}`);
         }
         if (supabase) {
-          const { error } = await supabase.from("countdowns").insert({ id: row.id, user_id: u.id, artist: row.artist, concert: row.concert, date: row.date, venue: row.venue, city: row.city, notes: row.notes, image_url: storagePath, variant: row.variant });
+          const { error } = await supabase.from("countdowns").insert({ id: row.id, user_id: u.id, artist: row.artist, concert: row.concert, date: row.date, venue: row.venue, city: row.city, notes: row.notes, image_url: storagePath, variant: row.variant, shared_with: row.sharedWith ?? [] });
           if (error) {
             if (file && storagePath) await supabase.storage.from("memories").remove([storagePath]);
             throw new Error(`Saving countdown failed: ${error.message}`);
@@ -1187,11 +1207,11 @@ export const useStore = create<StoreState>()(
           const { data } = await supabase.storage.from("memories").createSignedUrl(storagePath, 3600);
           displayUrl = data?.signedUrl ?? "";
         }
-        set((state) => ({ countdowns: [...state.countdowns, { ...row, imageUrl: displayUrl }] }));
+        set((state) => ({ countdowns: [...state.countdowns, { ...row, imageUrl: displayUrl, ownerId: u.id, ownerUsername: u.username }] }));
       },
       editCountdown: (id, patch) => {
         set((s) => ({ countdowns: s.countdowns.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
-        if (supabase) { const db: Record<string, unknown> = {}; if (patch.artist !== undefined) db.artist = patch.artist; if (patch.concert !== undefined) db.concert = patch.concert; if (patch.date !== undefined) db.date = patch.date; if (patch.venue !== undefined) db.venue = patch.venue; if (patch.city !== undefined) db.city = patch.city; if (patch.notes !== undefined) db.notes = patch.notes; if (patch.imageUrl !== undefined) db.image_url = patch.imageUrl; if (patch.variant !== undefined) db.variant = patch.variant; void supabase.from("countdowns").update(db).eq("id", id).then(({ error }) => { if (error) console.warn("[Supabase] editCountdown failed:", error.message); }); }
+        if (supabase) { const db: Record<string, unknown> = {}; if (patch.artist !== undefined) db.artist = patch.artist; if (patch.concert !== undefined) db.concert = patch.concert; if (patch.date !== undefined) db.date = patch.date; if (patch.venue !== undefined) db.venue = patch.venue; if (patch.city !== undefined) db.city = patch.city; if (patch.notes !== undefined) db.notes = patch.notes; if (patch.imageUrl !== undefined) db.image_url = patch.imageUrl; if (patch.variant !== undefined) db.variant = patch.variant; if (patch.sharedWith !== undefined) db.shared_with = patch.sharedWith; void supabase.from("countdowns").update(db).eq("id", id).then(({ error }) => { if (error) console.warn("[Supabase] editCountdown failed:", error.message); }); }
       },
       deleteCountdown: (id) => {
         set((s) => ({ countdowns: s.countdowns.filter((c) => c.id !== id) }));
@@ -1378,20 +1398,68 @@ export const useStore = create<StoreState>()(
         }
       },
 
-      sendConnectionRequest: (userId) => {
+      sendConnectionRequest: async (userId, kind) => {
         const u = get().auth;
-        set((s) => ({ connections: { ...s.connections, buddies: s.connections.buddies.some((b) => b.userId === userId) ? s.connections.buddies : [...s.connections.buddies, { userId, status: "pending" }] } }));
-        if (supabase && u) void supabase.from("connections").insert({ requester_id: u.id, target_id: userId, kind: "buddy", status: "pending" }).then(({ error }) => { if (error && !error.message.includes("duplicate key")) console.warn("[Supabase] sendConnectionRequest failed:", error.message); });
+        if (!u || userId === u.id) return false;
+        const current = kind === "fomo" ? get().connections.fomo : get().connections.buddies;
+        if (current.some((link) => link.userId === userId && link.status !== "declined")) return false;
+        if (supabase) {
+          const { data: existing, error: lookupError } = await supabase.from("connections")
+            .select("status,requester_id,target_id")
+            .eq("kind", kind)
+            .or(`and(requester_id.eq.${u.id},target_id.eq.${userId}),and(requester_id.eq.${userId},target_id.eq.${u.id})`)
+            .maybeSingle();
+          if (lookupError) { console.warn("[Supabase] connection lookup failed:", lookupError.message); return false; }
+          if (existing) {
+            if (existing.status !== "declined" || existing.requester_id !== u.id) return false;
+            const { error: deleteError } = await supabase.from("connections").delete().eq("requester_id", u.id).eq("target_id", userId).eq("kind", kind);
+            if (deleteError) { console.warn("[Supabase] old connection request cleanup failed:", deleteError.message); return false; }
+          }
+          const { error } = await supabase.from("connections").insert({ requester_id: u.id, target_id: userId, kind, status: "pending" });
+          if (error) { console.warn("[Supabase] sendConnectionRequest failed:", error.message); return false; }
+        }
+        set((s) => ({ connections: { ...s.connections, [kind === "fomo" ? "fomo" : "buddies"]: [...(kind === "fomo" ? s.connections.fomo : s.connections.buddies).filter((x) => x.userId !== userId), { userId, status: "pending", direction: "outgoing" }] } }));
+        return true;
       },
-      acceptConnection: (userId) => {
+      acceptConnection: async (userId, kind) => {
         const u = get().auth;
-        set((s) => ({ connections: { ...s.connections, buddies: s.connections.buddies.map((b) => (b.userId === userId ? { ...b, status: "accepted" } : b)) } }));
-        if (supabase && u) void supabase.from("connections").update({ status: "accepted" }).eq("requester_id", userId).eq("target_id", u.id).eq("kind", "buddy").eq("status", "pending").then(({ error }) => { if (error) console.warn("[Supabase] acceptConnection failed:", error.message); });
+        if (!u) return false;
+        if (supabase) {
+          const { data, error } = await supabase.from("connections").update({ status: "accepted" })
+            .eq("requester_id", userId).eq("target_id", u.id).eq("kind", kind).eq("status", "pending").select("id").maybeSingle();
+          if (error || !data) { console.warn("[Supabase] acceptConnection failed:", error?.message ?? "Request not found"); return false; }
+        }
+        const key = kind === "fomo" ? "fomo" : "buddies";
+        set((s) => ({ connections: { ...s.connections, [key]: s.connections[key].map((b) => (b.userId === userId ? { ...b, status: "accepted" } : b)) } }));
+        return true;
       },
-      declineConnection: (userId) => {
+      declineConnection: async (userId, kind) => {
         const u = get().auth;
-        set((s) => ({ connections: { ...s.connections, buddies: s.connections.buddies.map((b) => (b.userId === userId ? { ...b, status: "declined" } : b)) } }));
-        if (supabase && u) void supabase.from("connections").update({ status: "declined" }).eq("requester_id", userId).eq("target_id", u.id).eq("kind", "buddy").eq("status", "pending").then(({ error }) => { if (error) console.warn("[Supabase] declineConnection failed:", error.message); });
+        if (!u) return false;
+        if (supabase) {
+          const { data, error } = await supabase.from("connections").update({ status: "declined" })
+            .eq("requester_id", userId).eq("target_id", u.id).eq("kind", kind).eq("status", "pending").select("id").maybeSingle();
+          if (error || !data) { console.warn("[Supabase] declineConnection failed:", error?.message ?? "Request not found"); return false; }
+        }
+        const key = kind === "fomo" ? "fomo" : "buddies";
+        set((s) => ({ connections: { ...s.connections, [key]: s.connections[key].map((b) => (b.userId === userId ? { ...b, status: "declined" } : b)) } }));
+        return true;
+      },
+      shareCountdown: async (id, userIds) => {
+        const u = get().auth;
+        const item = get().countdowns.find((c) => c.id === id);
+        if (!u || !item || item.ownerId !== u.id) return false;
+        const allowed = new Set([
+          ...get().connections.fomo.filter((c) => c.status === "accepted").map((c) => c.userId),
+          ...get().connections.buddies.filter((c) => c.status === "accepted").map((c) => c.userId),
+        ]);
+        const safeIds = [...new Set(userIds)].filter((id) => allowed.has(id));
+        if (supabase) {
+          const { error } = await supabase.from("countdowns").update({ shared_with: safeIds }).eq("id", id).eq("user_id", u.id);
+          if (error) { console.warn("[Supabase] shareCountdown failed:", error.message); return false; }
+        }
+        set((s) => ({ countdowns: s.countdowns.map((c) => c.id === id ? { ...c, sharedWith: safeIds } : c) }));
+        return true;
       },
 
       sendTogetherMessage: (m) => {
