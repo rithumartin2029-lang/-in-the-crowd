@@ -138,6 +138,7 @@ function RelationshipButton({ kind, link, onRequest, onAccept, onDecline }: {
   if (!link || (link.status === "declined" && link.direction === "outgoing")) {
     return <Button size="sm" variant="outline" onClick={onRequest}>Add {label}</Button>;
   }
+  if (link.status === "declined") return <Badge variant="secondary">{label} · Declined</Badge>;
   if (link.status === "accepted") return <Badge variant="default">{label} · Connected</Badge>;
   if (link.direction === "outgoing") return <Badge variant="secondary">{label} · Request sent</Badge>;
   return (
