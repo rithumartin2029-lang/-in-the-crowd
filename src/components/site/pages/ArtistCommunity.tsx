@@ -65,7 +65,7 @@ export default function ArtistCommunity() {
           <div>
             <Badge className="mb-2 bg-black/40 text-white backdrop-blur">{artist.genre}</Badge>
             <h1 className="text-3xl font-bold sm:text-4xl">{artist.name}</h1>
-            <p className="mt-2 flex items-center gap-1.5 text-sm opacity-90"><Users className="size-4" /> {softCount(artist.members * 17, gentleMode)}</p>
+            <p className="mt-2 flex items-center gap-1.5 text-sm opacity-90"><Users className="size-4" /> {softCount(artist.members, gentleMode)}</p>
           </div>
           <Button onClick={() => toast.success(`Joined ${artist.name}`)} className="gap-1.5"><Users className="size-4" /> Join</Button>
         </div>

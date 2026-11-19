@@ -153,7 +153,7 @@ export default function Community() {
                   <CardContent className="space-y-2 p-3">
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>{a.genre}</span>
-                      <span>{softCount(a.members * 17, gentleMode)}</span>
+                      <span>{softCount(a.members, gentleMode)}</span>
                     </div>
                     <div className="flex gap-2">
                       <Button size="sm" className="flex-1" onClick={() => { toast.success(`Joined ${a.name}`); }}>Join</Button>

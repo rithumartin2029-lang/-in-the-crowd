@@ -337,7 +337,7 @@ export default function Home() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold">{a.name}</p>
                   <p className="text-xs text-muted-foreground">{a.genre || "Community"}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{softCount(a.members * 17, gentleMode)}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{softCount(a.members, gentleMode)}</p>
                 </div>
                 <Button size="sm" variant="outline" className="shrink-0">Join</Button>
               </button>
