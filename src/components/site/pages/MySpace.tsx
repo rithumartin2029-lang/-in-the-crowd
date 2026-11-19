@@ -44,6 +44,7 @@ export default function MySpace() {
     songThatMadeMyNight,
     memories,
     connections,
+    registeredUsers,
     navigate,
     addDiary,
     concerts,
@@ -349,11 +350,11 @@ export default function MySpace() {
         <div className="grid gap-3 sm:grid-cols-2">
           <Card className="bg-card/60">
             <CardContent className="p-4">
-              <p className="text-sm font-medium">FOMO matches</p>
+              <p className="text-sm font-medium">FOMO Buddies</p>
               {connections.fomo.length === 0 ? (
                 <p className="mt-1 text-xs text-muted-foreground">No matches yet.</p>
               ) : (
-                connections.fomo.map((f) => <p key={f.userId} className="text-xs">{f.label}</p>)
+                connections.fomo.map((f) => <p key={f.userId} className="text-xs">{registeredUsers.find((u) => u.id === f.userId)?.username || "Crowd member"} — {f.status}</p>)
               )}
               <Button size="sm" variant="outline" className="mt-2" onClick={() => navigate("connections")}>Find matches</Button>
             </CardContent>
@@ -365,7 +366,7 @@ export default function MySpace() {
                 <p className="mt-1 text-xs text-muted-foreground">No buddy requests.</p>
               ) : (
                 connections.buddies.map((b) => (
-                  <p key={b.userId} className="text-xs">{b.userId} — {b.status}</p>
+                  <p key={b.userId} className="text-xs">{registeredUsers.find((u) => u.id === b.userId)?.username || "Crowd member"} — {b.status}</p>
                 ))
               )}
               <Button size="sm" variant="outline" className="mt-2" onClick={() => navigate("connections")}>Find buddies</Button>
