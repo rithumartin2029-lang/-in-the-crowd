@@ -750,3 +750,118 @@ create policy "Admins can delete memory uploads"
 -- add your NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY
 -- env vars (Settings → API in Supabase) and the app will go live.
 -- ============================================================================
+
+ 
+-- ============================================================================
+-- CROWD STORIES, DIGITAL TICKETS AND PRIVATE CROWD CHAT
+-- ============================================================================
+
+create table if not exists public.stories (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  username text not null,
+  media_type text not null check (media_type in ('image','video')),
+  storage_path text not null,
+  caption text not null default '',
+  visibility text not null default 'connections' check (visibility in ('public','connections','private')),
+  approved boolean not null default true,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default (now() + interval '24 hours')
+);
+create index if not exists stories_expiry_idx on public.stories(expires_at);
+create index if not exists stories_user_created_idx on public.stories(user_id, created_at desc);
+alter table public.stories enable row level security;
+drop policy if exists "Active stories visible to their audience" on public.stories;
+create policy "Active stories visible to their audience" on public.stories for select to authenticated
+using (approved = true and expires_at > now() and (
+  user_id = (select auth.uid()) or visibility = 'public'
+  or (visibility = 'connections' and exists (
+    select 1 from public.connections c where c.status = 'accepted' and c.kind in ('fomo','buddy')
+    and ((c.requester_id = (select auth.uid()) and c.target_id = stories.user_id)
+      or (c.target_id = (select auth.uid()) and c.requester_id = stories.user_id))
+  ))
+));
+drop policy if exists "Users create their own stories" on public.stories;
+create policy "Users create their own stories" on public.stories for insert to authenticated
+with check (user_id = (select auth.uid()));
+drop policy if exists "Owners delete their own stories" on public.stories;
+create policy "Owners delete their own stories" on public.stories for delete to authenticated
+using (user_id = (select auth.uid()));
+grant select, insert, delete on public.stories to authenticated;
+
+create table if not exists public.digital_tickets (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  concert_id uuid references public.concerts(id) on delete set null,
+  artist text not null, event_name text not null, event_date text not null default '',
+  venue text not null default '', city text not null default '', seat_info text not null default '',
+  ticket_code text not null unique, note text not null default '', created_at timestamptz not null default now()
+);
+create index if not exists digital_tickets_user_created_idx on public.digital_tickets(user_id, created_at desc);
+alter table public.digital_tickets enable row level security;
+drop policy if exists "Users manage their own digital keepsakes" on public.digital_tickets;
+create policy "Users manage their own digital keepsakes" on public.digital_tickets for all to authenticated
+using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+grant select, insert, update, delete on public.digital_tickets to authenticated;
+
+create table if not exists public.direct_chats (
+  id uuid primary key default gen_random_uuid(),
+  user_a uuid not null references public.profiles(id) on delete cascade,
+  user_b uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  constraint direct_chats_distinct_users check (user_a <> user_b),
+  constraint direct_chats_sorted_users check (user_a < user_b),
+  unique (user_a, user_b)
+);
+create index if not exists direct_chats_user_a_idx on public.direct_chats(user_a);
+create index if not exists direct_chats_user_b_idx on public.direct_chats(user_b);
+alter table public.direct_chats enable row level security;
+drop policy if exists "Chat participants can view their chats" on public.direct_chats;
+create policy "Chat participants can view their chats" on public.direct_chats for select to authenticated
+using ((select auth.uid()) = user_a or (select auth.uid()) = user_b);
+drop policy if exists "Connected users can start a chat" on public.direct_chats;
+create policy "Connected users can start a chat" on public.direct_chats for insert to authenticated
+with check (((select auth.uid()) = user_a or (select auth.uid()) = user_b) and exists (
+  select 1 from public.connections c where c.status = 'accepted' and c.kind in ('fomo','buddy')
+  and ((c.requester_id = direct_chats.user_a and c.target_id = direct_chats.user_b)
+    or (c.requester_id = direct_chats.user_b and c.target_id = direct_chats.user_a))
+));
+grant select, insert on public.direct_chats to authenticated;
+
+create table if not exists public.direct_messages (
+  id uuid primary key default gen_random_uuid(),
+  chat_id uuid not null references public.direct_chats(id) on delete cascade,
+  sender_id uuid not null references public.profiles(id) on delete cascade,
+  body text not null check (char_length(body) between 1 and 2000),
+  created_at timestamptz not null default now()
+);
+create index if not exists direct_messages_chat_created_idx on public.direct_messages(chat_id, created_at);
+alter table public.direct_messages enable row level security;
+drop policy if exists "Chat members can read messages" on public.direct_messages;
+create policy "Chat members can read messages" on public.direct_messages for select to authenticated
+using (exists (select 1 from public.direct_chats c where c.id = direct_messages.chat_id
+  and ((select auth.uid()) = c.user_a or (select auth.uid()) = c.user_b)));
+drop policy if exists "Connected chat members can send messages" on public.direct_messages;
+create policy "Connected chat members can send messages" on public.direct_messages for insert to authenticated
+with check (sender_id = (select auth.uid()) and exists (
+  select 1 from public.direct_chats dc join public.connections c
+    on c.status = 'accepted' and c.kind in ('fomo','buddy')
+    and ((c.requester_id = dc.user_a and c.target_id = dc.user_b) or (c.requester_id = dc.user_b and c.target_id = dc.user_a))
+  where dc.id = direct_messages.chat_id and ((select auth.uid()) = dc.user_a or (select auth.uid()) = dc.user_b)
+));
+grant select, insert on public.direct_messages to authenticated;
+
+drop policy if exists "Story media readable by its audience" on storage.objects;
+create policy "Story media readable by its audience" on storage.objects for select to authenticated
+using (bucket_id = 'memories' and exists (
+  select 1 from public.stories s where s.storage_path = objects.name and s.approved = true and s.expires_at > now()
+  and (s.user_id = (select auth.uid()) or s.visibility = 'public'
+    or (s.visibility = 'connections' and exists (
+      select 1 from public.connections c where c.status = 'accepted' and c.kind in ('fomo','buddy')
+      and ((c.requester_id = (select auth.uid()) and c.target_id = s.user_id)
+        or (c.target_id = (select auth.uid()) and c.requester_id = s.user_id))
+    )))
+));
+do $$ begin
+  alter publication supabase_realtime add table public.direct_messages;
+exception when duplicate_object then null; end $$;

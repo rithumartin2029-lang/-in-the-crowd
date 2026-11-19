@@ -2,14 +2,15 @@
 
 import * as React from "react";
 import { useStore } from "@/lib/store";
-import { Home, Compass, Users, MessageCircle, Plus, User } from "lucide-react";
+import { Home, Compass, MessageCircle, Plus, User, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ITEMS = [
   { key: "home", label: "Home", icon: Home },
   { key: "explore", label: "Explore", icon: Compass },
   { key: "add", label: "Add", icon: Plus, center: true },
-  { key: "community", label: "Community", icon: MessageCircle },
+  { key: "stories", label: "Stories", icon: Sparkles },
+  { key: "crowd-chat", label: "Chat", icon: MessageCircle },
   { key: "myspace", label: "Me", icon: User },
 ];
 

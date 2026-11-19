@@ -30,6 +30,9 @@ import {
   Shield,
   Search,
   User as UserIcon,
+  Images,
+  Ticket,
+  MoreHorizontal,
 } from "lucide-react";
 import { avatarGradient, avatarInitials } from "@/lib/utils";
 import { toast } from "sonner";
@@ -39,7 +42,8 @@ const NAV = [
   { key: "home", label: "Home", icon: HomeIcon },
   { key: "explore", label: "Explore", icon: Compass },
   { key: "community", label: "Community", icon: MessageCircle },
-  { key: "together", label: "Together", icon: Users },
+  { key: "stories", label: "Stories", icon: Sparkles },
+  { key: "crowd-chat", label: "Crowd Chat", icon: MessageCircle },
   { key: "myspace", label: "My Space", icon: UserIcon },
 ];
 
@@ -85,6 +89,18 @@ export function Header() {
               {n.label}
             </button>
           ))}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                <MoreHorizontal className="size-4" /> More
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => navigate("memories")}><Images className="size-4" /> Crowd Memories</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("tickets")}><Ticket className="size-4" /> Digital Tickets</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("together")}><Users className="size-4" /> Concert Rooms</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </nav>
 
         <form onSubmit={onSearch} className="hidden flex-1 max-w-xs items-center md:flex md:ml-auto">
@@ -173,6 +189,9 @@ export function Header() {
                 <DropdownMenuItem onClick={() => navigate("notifications")}>
                   <Bell className="size-4" /> Notifications
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("memories")}><Images className="size-4" /> Crowd Memories</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("tickets")}><Ticket className="size-4" /> Digital Tickets</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("together")}><Users className="size-4" /> Concert Rooms</DropdownMenuItem>
                 {auth.role === "admin" && (
                   <DropdownMenuItem onClick={() => navigate("admin")}>
                     <Shield className="size-4" /> Admin

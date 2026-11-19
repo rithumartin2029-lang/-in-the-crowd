@@ -24,6 +24,11 @@ import BucketList from "@/components/site/pages/BucketList";
 import Countdown from "@/components/site/pages/Countdown";
 import UntilImThere from "@/components/site/pages/UntilImThere";
 import Connections from "@/components/site/pages/Connections";
+import Stories from "@/components/site/pages/Stories";
+import CrowdMemories from "@/components/site/pages/CrowdMemories";
+import DigitalTickets from "@/components/site/pages/DigitalTickets";
+import CrowdChat from "@/components/site/pages/CrowdChat";
+import { HelpGuide } from "@/components/site/HelpGuide";
 import ArtistCommunity from "@/components/site/pages/ArtistCommunity";
 import { StartSpaceDialog } from "@/components/site/StartSpaceDialog";
 
@@ -36,6 +41,9 @@ const AUTH_REQUIRED = new Set([
   "bucket-list",
   "countdown",
   "until-im-there",
+  "stories",
+  "tickets",
+  "crowd-chat",
 ]);
 
 function renderView(view: string, authed: boolean) {
@@ -58,6 +66,10 @@ function renderView(view: string, authed: boolean) {
     case "countdown": return <Countdown />;
     case "until-im-there": return <UntilImThere />;
     case "connections": return <Connections />;
+    case "stories": return <Stories />;
+    case "memories": return <CrowdMemories />;
+    case "tickets": return <DigitalTickets />;
+    case "crowd-chat": return <CrowdChat />;
     case "artist-community": return <ArtistCommunity />;
     case "auth": return <Auth />;
     default: return <Home />;
@@ -98,7 +110,7 @@ export default function Page() {
     const allowed = new Set([
       "home", "explore", "community", "together", "myspace",
       "notifications", "founder-story", "takedown", "auth",
-      "bucket-list", "countdown", "until-im-there", "connections",
+      "bucket-list", "countdown", "until-im-there", "connections", "stories", "memories", "tickets", "crowd-chat",
     ]);
     if (allowed.has(qView)) {
       setView(qView);
@@ -151,6 +163,7 @@ export default function Page() {
       <Footer />
       <BottomNav />
       <StartSpaceDialog />
+      <HelpGuide />
     </div>
   );
 }
