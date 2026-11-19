@@ -565,7 +565,18 @@ create policy "Countdowns: owner only"
 
 create policy "Countdowns shared with me"
   on public.countdowns for select to authenticated
-  using ((select auth.uid()) = any(shared_with));
+  using (
+    (select auth.uid()) = any(shared_with)
+    and exists (
+      select 1 from public.connections c
+      where c.status = 'accepted'
+        and c.kind in ('fomo','buddy')
+        and (
+          (c.requester_id = (select auth.uid()) and c.target_id = countdowns.user_id)
+          or (c.target_id = (select auth.uid()) and c.requester_id = countdowns.user_id)
+        )
+    )
+  );
 
 create policy "Diary: owner only"
   on public.diary for all using (user_id = auth.uid());
@@ -668,6 +679,15 @@ create policy "Memory files readable by owner or approved audience"
         select 1 from public.countdowns cd
         where cd.image_url = objects.name
           and (select auth.uid()) = any(cd.shared_with)
+          and exists (
+            select 1 from public.connections c
+            where c.status = 'accepted'
+              and c.kind in ('fomo','buddy')
+              and (
+                (c.requester_id = (select auth.uid()) and c.target_id = cd.user_id)
+                or (c.target_id = (select auth.uid()) and c.requester_id = cd.user_id)
+              )
+          )
       )
     )
   );
