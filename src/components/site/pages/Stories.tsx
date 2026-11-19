@@ -86,7 +86,7 @@ export default function Stories() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6">
-      <Section title="Crowd Stories" description="Little moments from the crowd. Every story disappears after 24 hours." />
+      <Section title="Crowd Stories" description="Little moments from the crowd. Every story disappears after 24 hours.">{null}</Section>
       <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-card/80 to-accent/10">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base"><Sparkles className="size-4 text-primary" /> Add to the moment</CardTitle>

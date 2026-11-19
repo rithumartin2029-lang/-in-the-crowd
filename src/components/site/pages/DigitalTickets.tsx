@@ -55,7 +55,7 @@ export default function DigitalTickets() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6">
-      <Section title="Digital Tickets" description="Turn a concert you love into a little ticket-shaped keepsake you can keep forever." />
+      <Section title="Digital Tickets" description="Turn a concert you love into a little ticket-shaped keepsake you can keep forever.">{null}</Section>
       <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-card to-accent/10">
         <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Sparkles className="size-4 text-primary" /> Create a Crowd Pass</CardTitle><CardDescription>Choose one of your concert spaces and add a seat or personal note.</CardDescription></CardHeader>
         <CardContent className="space-y-3">

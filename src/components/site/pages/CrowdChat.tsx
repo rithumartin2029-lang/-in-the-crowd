@@ -94,7 +94,7 @@ export default function CrowdChat() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6">
-      <Section title="Crowd Chat" description="A quieter space for one-to-one conversations with your accepted FOMO and Concert Buddies." />
+      <Section title="Crowd Chat" description="A quieter space for one-to-one conversations with your accepted FOMO and Concert Buddies.">{null}</Section>
       {!supabase || !liveMode ? <Card><CardContent className="p-6 text-sm text-muted-foreground">Private chat needs a live account connection. Sign in on the published website to use Crowd Chat.</CardContent></Card> :
       <div className="grid gap-4 md:grid-cols-[280px_minmax(0,1fr)]">
         <Card className="min-h-[520px] bg-card/70">

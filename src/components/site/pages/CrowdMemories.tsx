@@ -18,7 +18,7 @@ export default function CrowdMemories() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6">
-      <Section title="Crowd Memories" description="The photos, videos, songs and little details that make a concert unforgettable." />
+      <Section title="Crowd Memories" description="The photos, videos, songs and little details that make a concert unforgettable.">{null}</Section>
       {concerts.length === 0 ? <><EmptyState title="Your memory wall is waiting" message="Find or start a concert space first. Every concert has its own memory library." /><div className="flex justify-center"><Button onClick={() => navigate("explore")}><Compass className="mr-2 size-4" /> Explore concerts</Button></div></>
       : <>
         <div className="flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
