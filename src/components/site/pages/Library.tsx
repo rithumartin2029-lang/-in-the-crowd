@@ -49,7 +49,7 @@ export function Library({ concertId }: { concertId: string }) {
       return false;
     })
     .filter((m) => m.category === tab)
-    .filter((m) => folderFilter === "all" || (folderFilter === "unfiled" ? !m.folderId : m.folderId === folderFilter))
+    .filter((m) => folderFilter === "all" || (m.userId === auth?.id && (folderFilter === "unfiled" ? !m.folderId : m.folderId === folderFilter)))
     .filter((m) => (q.trim() ? `${m.caption} ${m.songName ?? ""} ${m.username}`.toLowerCase().includes(q.toLowerCase()) : true))
     .filter((m) => (favouritesOnly ? favIds.includes(m.id) : true));
 
