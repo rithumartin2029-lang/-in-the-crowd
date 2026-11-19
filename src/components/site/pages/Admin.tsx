@@ -35,16 +35,16 @@ export default function Admin() {
     fomoPosts,
     togetherMessages,
     updateMemory,
+    deleteMemory,
+    deleteFomoPost,
+    updateReportStatus,
     notifications,
   } = useStore();
 
   if (!auth || auth.role !== "admin") {
     return (
       <div className="px-4 py-10">
-        <EmptyState title="Admin only" message="Sign in as a demo admin to view this dashboard." />
-        <p className="mt-3 text-center text-xs text-muted-foreground">
-          On the sign-in page, click "Login as demo admin".
-        </p>
+        <EmptyState title="Admin only" message="Sign in with the administrator account to review reports and manage community content." />
       </div>
     );
   }
@@ -59,7 +59,7 @@ export default function Admin() {
         </div>
         <div>
           <h1 className="text-2xl font-bold">Admin</h1>
-          <p className="text-sm text-muted-foreground">Moderation dashboard (demo)</p>
+          <p className="text-sm text-muted-foreground">Review reports, handle takedown requests, and moderate community content</p>
         </div>
       </div>
 
@@ -134,7 +134,14 @@ export default function Admin() {
                         <TableCell className="font-mono text-xs">{r.targetId}</TableCell>
                         <TableCell className="text-xs">{r.reason}</TableCell>
                         <TableCell><Badge variant="secondary">{r.status}</Badge></TableCell>
-                        <TableCell><Button size="sm" variant="ghost" onClick={() => toast.success("Marked resolved")}>Resolve</Button></TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {r.status === "pending" && <Button size="sm" variant="outline" onClick={async () => { const ok = await updateReportStatus(r.id, "reviewing"); ok ? toast.success("Report marked as reviewing") : toast.error("Could not update this report"); }}>Review</Button>}
+                            {r.status !== "resolved" && <Button size="sm" variant="ghost" onClick={async () => { const ok = await updateReportStatus(r.id, "resolved"); ok ? toast.success("Report resolved") : toast.error("Could not update this report"); }}>Resolve</Button>}
+                            {r.targetType === "fomo_post" && <Button size="sm" variant="destructive" onClick={async () => { if (!window.confirm("Permanently remove this reported post and its comments?")) return; const removed = await deleteFomoPost(r.targetId); if (!removed) { toast.error("Post could not be removed. Check that the report contains a valid post ID."); return; } await updateReportStatus(r.id, "resolved"); toast.success("Reported post removed"); }}>Remove post</Button>}
+                            {r.targetType === "memory" && <Button size="sm" variant="destructive" onClick={async () => { if (!window.confirm("Permanently remove this reported memory and its uploaded file?")) return; const removed = await deleteMemory(r.targetId); if (!removed) { toast.error("Memory could not be removed. Check that the report contains a valid memory ID."); return; } await updateReportStatus(r.id, "resolved"); toast.success("Reported memory removed"); }}>Remove memory</Button>}
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -237,7 +244,12 @@ export default function Admin() {
                       <TableRow key={r.id}>
                         <TableCell className="font-mono text-xs">{r.targetId}</TableCell>
                         <TableCell className="text-xs">{r.reason}</TableCell>
-                        <TableCell><Badge variant="secondary">{r.status}</Badge></TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary">{r.status}</Badge>
+                            {r.status !== "resolved" && <Button size="sm" variant="ghost" onClick={async () => { const ok = await updateReportStatus(r.id, "resolved"); ok ? toast.success("Takedown request marked resolved") : toast.error("Could not update request"); }}>Resolve</Button>}
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
