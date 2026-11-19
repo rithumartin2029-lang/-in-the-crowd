@@ -757,7 +757,7 @@ export const useStore = create<StoreState>()(
                 tour: b.tour, date: b.date, venue: b.venue, city: b.city, notes: b.notes,
                 attended: b.attended ?? false,
               })),
-              countdowns: await Promise.all([...new Map([...(cd ?? []), ...(sharedCd ?? [])].map((c: any) => [String(c.id), c])).values()].map(async (c: any) => {
+              countdowns: await Promise.all(Array.from(new Map([...(cd ?? []), ...(sharedCd ?? [])].map((c: any): [string, any] => [String(c.id), c])).values()).map(async (c: any) => {
                 let imageUrl = c.image_url ?? "";
                 if (imageUrl && !/^https?:\/\//i.test(imageUrl) && supabase) {
                   const { data } = await supabase.storage.from("memories").createSignedUrl(imageUrl, 3600);
