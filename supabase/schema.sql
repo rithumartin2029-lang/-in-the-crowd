@@ -682,6 +682,11 @@ create policy "Owners delete their own uploads"
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
+create policy "Admins can delete memory uploads"
+  on storage.objects for delete
+  to authenticated
+  using (bucket_id = 'memories' and private.is_admin());
+
 -- ============================================================================
 -- DONE. The schema is ready. After running this in Supabase SQL editor,
 -- add your NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY
