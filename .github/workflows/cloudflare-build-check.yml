@@ -37,3 +37,27 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: cloudflare-build-check-placeholder
+      - name: Smoke test Worker locally (no deployment)
+        shell: bash
+        run: |
+          npx wrangler dev --port 8787 --local > /tmp/in-the-crowd-worker.log 2>&1 &
+          WORKER_PID=$!
+          trap 'kill "$WORKER_PID" 2>/dev/null || true' EXIT
+
+          READY=0
+          for attempt in $(seq 1 30); do
+            if curl --silent --show-error --fail http://127.0.0.1:8787/ -o /tmp/in-the-crowd-home.html; then
+              READY=1
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$READY" -ne 1 ]; then
+            cat /tmp/in-the-crowd-worker.log
+            exit 1
+          fi
+
+          grep -q "In the Crowd" /tmp/in-the-crowd-home.html
+          curl --silent --show-error --fail http://127.0.0.1:8787/api | grep -q "Hello, world!"
+          echo "Home page and API route responded successfully in the local Cloudflare Worker runtime."
