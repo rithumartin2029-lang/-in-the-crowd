@@ -798,6 +798,7 @@ create table if not exists public.digital_tickets (
   ticket_code text not null unique, note text not null default '', created_at timestamptz not null default now()
 );
 create index if not exists digital_tickets_user_created_idx on public.digital_tickets(user_id, created_at desc);
+create index if not exists digital_tickets_concert_id_idx on public.digital_tickets(concert_id);
 alter table public.digital_tickets enable row level security;
 drop policy if exists "Users manage their own digital keepsakes" on public.digital_tickets;
 create policy "Users manage their own digital keepsakes" on public.digital_tickets for all to authenticated
@@ -836,6 +837,7 @@ create table if not exists public.direct_messages (
   created_at timestamptz not null default now()
 );
 create index if not exists direct_messages_chat_created_idx on public.direct_messages(chat_id, created_at);
+create index if not exists direct_messages_sender_id_idx on public.direct_messages(sender_id);
 alter table public.direct_messages enable row level security;
 drop policy if exists "Chat members can read messages" on public.direct_messages;
 create policy "Chat members can read messages" on public.direct_messages for select to authenticated
