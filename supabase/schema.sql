@@ -205,8 +205,10 @@ create table if not exists public.countdowns (
   venue       text, city text, notes text,
   image_url   text,
   variant     text default 'minimal',
+  shared_with uuid[] not null default '{}',
   created_at  timestamptz default now()
 );
+alter table public.countdowns add column if not exists shared_with uuid[] not null default '{}';
 
 create table if not exists public.diary (
   id          uuid primary key default gen_random_uuid(),
@@ -561,6 +563,10 @@ create policy "Bucket list: owner only"
 create policy "Countdowns: owner only"
   on public.countdowns for all using (user_id = auth.uid());
 
+create policy "Countdowns shared with me"
+  on public.countdowns for select to authenticated
+  using ((select auth.uid()) = any(shared_with));
+
 create policy "Diary: owner only"
   on public.diary for all using (user_id = auth.uid());
 
@@ -657,6 +663,11 @@ create policy "Memory files readable by owner or approved audience"
                   or (c.target_id = auth.uid() and c.requester_id = m.user_id))
             ))
           )
+      )
+      or exists (
+        select 1 from public.countdowns cd
+        where cd.image_url = objects.name
+          and (select auth.uid()) = any(cd.shared_with)
       )
     )
   );
